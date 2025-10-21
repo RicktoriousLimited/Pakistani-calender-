@@ -405,12 +405,21 @@ class PdfBulletin implements SourceInterface
 
             if (!$tableStarted) {
                 $joined = implode(' ', $window);
-                if (str_contains($joined, 'shutdown') && str_contains($joined, 'date')) {
+                $normalizedJoined = strtolower($joined);
+                $normalizedJoined = preg_replace('/\s+/', ' ', $normalizedJoined) ?? $normalizedJoined;
+                $compact = str_replace(' ', '', $normalizedJoined);
+
+                if (str_contains($compact, 'shutdown') && str_contains($compact, 'date')) {
                     $tableStarted = true;
                     $window = [];
                     continue;
                 }
-                if ((str_contains($joined, 'start time') && str_contains($joined, 'end time')) || str_contains($joined, 'remarks')) {
+                if (
+                    (str_contains($compact, 'starttime') && str_contains($compact, 'endtime'))
+                    || str_contains($compact, 'remarks')
+                    || str_contains($compact, 'natureofwork')
+                    || str_contains($compact, 'description')
+                ) {
                     $tableStarted = true;
                     $window = [];
                     continue;
@@ -487,6 +496,7 @@ class PdfBulletin implements SourceInterface
     private function isTableHeaderToken(string $line): bool
     {
         $normalized = strtolower($line);
+        $normalized = str_replace('shut down', 'shutdown', $normalized);
         $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
         $normalized = trim($normalized);
         if ($normalized === '') {
@@ -513,7 +523,17 @@ class PdfBulletin implements SourceInterface
             'feeder name',
             'feeder code',
             'name of feeder',
+            'feeder name & code',
+            'feeder name&code',
+            'feeder name/code',
             'shutdown date',
+            'shut down date',
+            'shutdown from',
+            'shutdown to',
+            'shutdown time from',
+            'shutdown time to',
+            'time from',
+            'time to',
             'date',
             'start time',
             'start',
@@ -535,10 +555,17 @@ class PdfBulletin implements SourceInterface
         if ($token === '') {
             return false;
         }
-        if (preg_match('/^\d+[.)]?$/', str_replace(' ', '', $token))) {
-            return true;
+        $normalized = str_replace(' ', '', $token);
+        if (!preg_match('/^\d+[.)]?$/', $normalized)) {
+            return false;
         }
-        return false;
+        if ($this->looksLikeTimeValue($token)) {
+            return false;
+        }
+        if ($this->looksLikeDateValue($token)) {
+            return false;
+        }
+        return true;
     }
 
     private function looksLikeDateValue(string $value): bool
