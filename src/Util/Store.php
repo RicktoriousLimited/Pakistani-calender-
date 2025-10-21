@@ -43,7 +43,11 @@ class Store
                 'sources' => [
                     'official' => ['enabled' => true, 'url' => 'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule'],
                     'facebook' => ['enabled' => false, 'url' => 'https://www.facebook.com/PRLESCO/'],
-                    'ccms' => ['enabled' => false, 'url' => 'https://ccms.pitc.com.pk/FeederDetails'],
+                    'ccms' => [
+                        'enabled' => true,
+                        'url' => 'https://ccms.pitc.com.pk/FeederDetails',
+                        'note' => 'PITC CCMS official schedule (JSON/HTML)',
+                    ],
                     'manual' => ['enabled' => true],
                 ],
             ];

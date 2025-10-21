@@ -10,6 +10,7 @@ require __DIR__ . '/../bootstrap.php';
 require __DIR__ . '/support/FakeSource.php';
 
 use SHUTDOWN\Parser\ManualCsv;
+use SHUTDOWN\Scraper\CCMS;
 use SHUTDOWN\Scraper\FacebookPR;
 use SHUTDOWN\Scraper\LescoScraper;
 use SHUTDOWN\Scraper\Official;
@@ -203,6 +204,48 @@ test('Official scraper parses table', function (): void {
     assertSame('F-1', $items[0]['feeder']);
 });
 
+test('CCMS scraper parses JSON payload', function (): void {
+    $json = json_encode([
+        'data' => [[
+            'Circle' => 'Lahore Circle',
+            'Division' => 'Model Town',
+            'SubDivision' => 'Garden Town',
+            'FeederName' => 'MT-01',
+            'ShutdownDate' => '2025-04-02',
+            'StartTime' => '08:00',
+            'EndTime' => '12:00',
+            'ShutdownType' => 'Maintenance',
+            'Reason' => 'Tree trimming',
+        ], [
+            'Area' => 'Johar Town',
+            'Feeder' => 'JT-11',
+            'StartDateTime' => '2025-04-03T09:00:00',
+            'EndDateTime' => '2025-04-03T13:00:00',
+            'Type' => 'Upgrade',
+        ]],
+    ]);
+    $ccms = new CCMS('https://example.test', fn () => $json);
+    $items = $ccms->fetch();
+    assertCount(2, $items);
+    assertSame('Garden Town', $items[0]['area']);
+    assertSame('MT-01', $items[0]['feeder']);
+    assertTrue(strpos($items[0]['start'], '2025-04-02') === 0);
+    assertSame('JT-11', $items[1]['feeder']);
+    assertTrue(strpos($items[1]['start'], '2025-04-03') === 0);
+    assertSame('ccms', $items[0]['source']);
+});
+
+test('CCMS scraper parses HTML table fallback', function (): void {
+    $html = '<table><thead><tr><th>Circle</th><th>Division</th><th>Sub Division</th><th>Feeder Name</th><th>Shutdown Date</th><th>Start Time</th><th>End Time</th><th>Type</th><th>Remarks</th></tr></thead><tbody><tr><td>Lahore</td><td>Central</td><td>Allama Iqbal Town</td><td>AI-09</td><td>2025-04-05</td><td>07:30</td><td>11:30</td><td>Planned</td><td>System upgrade</td></tr></tbody></table>';
+    $ccms = new CCMS('https://example.test', fn () => $html);
+    $items = $ccms->fetch();
+    assertCount(1, $items);
+    assertSame('Allama Iqbal Town', $items[0]['area']);
+    assertSame('AI-09', $items[0]['feeder']);
+    assertTrue(strpos($items[0]['start'], '2025-04-05') === 0);
+    assertSame('Planned', $items[0]['type']);
+});
+
 test('FacebookPR scraper extracts notice', function (): void {
     $html = '<div><p>Planned shutdown for feeder ABC on 2025-05-01 09:00</p></div>';
     $scraper = new FacebookPR('https://example.test', fn() => $html);
@@ -264,6 +307,7 @@ test('LescoScraper reports source failure', function (): void {
         $cfg = $store->readConfig();
         $cfg['sources']['official']['enabled'] = true;
         $cfg['sources']['manual']['enabled'] = false;
+        $cfg['sources']['ccms']['enabled'] = false;
         $store->writeConfig($cfg);
         $scraper = new LescoScraper($store, ['official' => fn () => new ThrowingSource()]);
         $items = $scraper->fetch();
