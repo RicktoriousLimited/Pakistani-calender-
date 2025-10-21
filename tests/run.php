@@ -311,6 +311,38 @@ test('PdfBulletin parses tabular PDF bulletins', function (): void {
     assertSame('Tree trimming', $items[1]['reason']);
 });
 
+test('PdfBulletin handles tables with spaced shut down headers', function (): void {
+    $text = implode("\n", [
+        'Sr.',
+        'Circle',
+        'Division',
+        'Sub Division',
+        'Feeder Name & Code',
+        'Shut Down Date',
+        'Time From',
+        'Time To',
+        'Nature of Work',
+        '1',
+        'North Lahore Circle',
+        'Shalimar Division',
+        'Baghbanpura Sub Division',
+        '11 KV Baghbanpura Feeder',
+        '22-10-2025',
+        '0800',
+        '1400',
+        'Pole replacement',
+    ]);
+
+    $bulletin = new PdfBulletin('https://example.test/bulletin.pdf', fn () => 'PDF', [], fn () => $text);
+    $items = $bulletin->fetch();
+
+    assertCount(1, $items);
+    assertSame('North Lahore | Shalimar | Baghbanpura', $items[0]['area']);
+    assertSame('11 KV Baghbanpura', $items[0]['feeder']);
+    assertTrue(strpos($items[0]['start'], '2025-10-22T08:00') === 0);
+    assertTrue(strpos($items[0]['end'], '2025-10-22T14:00') === 0);
+});
+
 test('PdfBulletin discovers latest PDF from listing pages', function (): void {
     $html = file_get_contents(__DIR__ . '/support/sample-bulletin-listing.html');
     $pdf = file_get_contents(__DIR__ . '/support/sample-bulletin.pdf');
