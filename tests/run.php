@@ -250,11 +250,36 @@ test('PdfBulletin discovers latest PDF from listing pages', function (): void {
 
 test('Official scraper parses table', function (): void {
     $html = '<table><tr><td>Area 1</td><td>F-1</td><td>2025-04-01 08:00</td><td>2025-04-01 10:00</td><td>Maintenance</td></tr></table>';
-    $official = new Official('https://example.test', fn() => $html);
+    $official = new Official('https://example.test', fn (string $url) => $html);
     $items = $official->fetch();
     assertCount(1, $items);
     assertSame('Area 1', $items[0]['area']);
     assertSame('F-1', $items[0]['feeder']);
+});
+
+test('Official scraper falls back to discovery pages and merges date/time columns', function (): void {
+    $html = '<table><thead><tr><th>Division</th><th>Sub Division</th><th>Feeder Name</th><th>Shutdown Date</th><th>Start Time</th><th>End Time</th><th>Remarks</th></tr></thead>' .
+        '<tbody><tr><td>Model Town</td><td>Garden Town</td><td>MT-01</td><td>22-10-2025</td><td>08:00 AM</td><td>12:00 PM</td><td>Maintenance Work</td></tr></tbody></table>';
+
+    $calls = [];
+    $fetcher = function (string $url) use (&$calls, $html) {
+        $calls[] = $url;
+        if ($url === 'https://example.test/fallback') {
+            return $html;
+        }
+        return '';
+    };
+
+    $official = new Official('https://example.test/primary', $fetcher, ['https://example.test/fallback']);
+    $items = $official->fetch();
+
+    assertCount(1, $items);
+    assertSame('Model Town | Garden Town', $items[0]['area']);
+    assertSame('MT-01', $items[0]['feeder']);
+    assertSame('https://example.test/fallback', $items[0]['url']);
+    assertTrue(strpos($items[0]['start'], '2025-10-22') === 0);
+    assertTrue(strpos($items[0]['end'], '2025-10-22') === 0);
+    assertTrue(in_array('https://example.test/fallback', $calls, true));
 });
 
 test('CCMS scraper parses JSON payload', function (): void {

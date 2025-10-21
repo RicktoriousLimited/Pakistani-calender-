@@ -111,6 +111,8 @@ class PdfBulletin implements SourceInterface
         return [
             'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule',
             'https://www.lesco.gov.pk/LoadManagement',
+            'https://www.lesco.gov.pk/~/LoadManagement',
+            'https://www.lesco.gov.pk/Notice_files/SDLS/',
         ];
     }
 
