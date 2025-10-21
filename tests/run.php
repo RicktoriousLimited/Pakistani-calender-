@@ -397,6 +397,38 @@ test('PdfBulletin discovers PDFs with spaces in the path', function (): void {
     assertSame('F-1', $items[0]['feeder']);
 });
 
+test('PdfBulletin discovers embedded PDFs without anchor tags', function (): void {
+    $requests = [];
+    $html = '<iframe src="/files/latest-bulletin.pdf"></iframe>' .
+        '<object data="/files/object-bulletin.pdf"></object>';
+    $pdfText = implode("\n", [
+        'Area: Embedded Area',
+        'Feeder: E-1',
+        'Start: 22-10-2025 08:00',
+        'End: 22-10-2025 09:00',
+        'Reason: Embedded test',
+    ]);
+
+    $fetcher = function (string $url) use (&$requests, $html) {
+        $requests[] = $url;
+        if (str_contains($url, '.pdf')) {
+            return '%PDF';
+        }
+        return $html;
+    };
+
+    $extractor = fn (string $binary): string => $pdfText;
+
+    $bulletin = new PdfBulletin('https://example.test/discover', $fetcher, [], $extractor);
+    $items = $bulletin->fetch();
+
+    $pdfRequests = array_values(array_filter($requests, fn ($url) => str_contains($url, '.pdf')));
+    assertTrue(!empty($pdfRequests), 'Expected at least one PDF request');
+    assertCount(1, $items);
+    assertSame('Embedded Area', $items[0]['area']);
+    assertSame('E-1', $items[0]['feeder']);
+});
+
 test('Official scraper parses table', function (): void {
     $html = '<table><tr><td>Area 1</td><td>F-1</td><td>2025-04-01 08:00</td><td>2025-04-01 10:00</td><td>Maintenance</td></tr></table>';
     $official = new Official('https://example.test', fn (string $url) => $html);

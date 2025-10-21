@@ -134,37 +134,52 @@ class PdfBulletin implements SourceInterface
         $dom = new \DOMDocument();
         if (@$dom->loadHTML($html) !== false) {
             $xpath = new \DOMXPath($dom);
-            foreach ($xpath->query('//*[@href]') as $node) {
-                if (!$node instanceof \DOMElement) {
+            $attributeGroups = [
+                ['selector' => '//*[@href]', 'attributes' => ['href']],
+                ['selector' => '//*[@src]', 'attributes' => ['src']],
+                ['selector' => '//object[@data]', 'attributes' => ['data']],
+                [
+                    'selector' => '//*[@data-href or @data-url or @data-src or @data-file or @data-download or @data-latest or @data-latest-pdf]',
+                    'attributes' => ['data-href', 'data-url', 'data-src', 'data-file', 'data-download', 'data-latest', 'data-latest-pdf'],
+                ],
+            ];
+            foreach ($attributeGroups as $group) {
+                $nodes = $xpath->query($group['selector']);
+                if (!$nodes) {
                     continue;
                 }
-                $href = trim($node->getAttribute('href'));
-                if ($href !== '' && $this->looksLikePdfUrl($href)) {
-                    $links[] = $this->absolutizeUrl($href, $baseUrl);
-                }
-                foreach (['data-href', 'data-url'] as $attr) {
-                    $candidate = trim($node->getAttribute($attr));
-                    if ($candidate !== '' && $this->looksLikePdfUrl($candidate)) {
-                        $links[] = $this->absolutizeUrl($candidate, $baseUrl);
+                foreach ($nodes as $node) {
+                    if (!$node instanceof \DOMElement) {
+                        continue;
                     }
-                }
-                $onclick = $node->getAttribute('onclick');
-                if ($onclick !== '') {
-                    foreach ($this->extractPdfUrlsFromString($onclick) as $candidate) {
-                        $links[] = $this->absolutizeUrl($candidate, $baseUrl);
+                    foreach ($group['attributes'] as $attr) {
+                        if (!$node->hasAttribute($attr)) {
+                            continue;
+                        }
+                        $candidate = trim($node->getAttribute($attr));
+                        if ($candidate !== '' && $this->looksLikePdfUrl($candidate)) {
+                            $links[] = $this->absolutizeUrl($candidate, $baseUrl);
+                        }
+                    }
+                    $onclick = $node->getAttribute('onclick');
+                    if ($onclick !== '') {
+                        foreach ($this->extractPdfUrlsFromString($onclick) as $candidate) {
+                            $links[] = $this->absolutizeUrl($candidate, $baseUrl);
+                        }
                     }
                 }
             }
 
-            foreach ($xpath->query('//*[@data-href or @data-url]') as $node) {
+            foreach ($xpath->query('//meta[@http-equiv]') as $node) {
                 if (!$node instanceof \DOMElement) {
                     continue;
                 }
-                foreach (['data-href', 'data-url'] as $attr) {
-                    $candidate = trim($node->getAttribute($attr));
-                    if ($candidate !== '' && $this->looksLikePdfUrl($candidate)) {
-                        $links[] = $this->absolutizeUrl($candidate, $baseUrl);
-                    }
+                if (strtolower($node->getAttribute('http-equiv')) !== 'refresh') {
+                    continue;
+                }
+                $content = $node->getAttribute('content');
+                foreach ($this->extractPdfUrlsFromMetaRefresh($content) as $candidate) {
+                    $links[] = $this->absolutizeUrl($candidate, $baseUrl);
                 }
             }
         }
@@ -342,6 +357,34 @@ class PdfBulletin implements SourceInterface
         $fragment = isset($parts['fragment']) ? '#' . preg_replace('/\s+/', '%20', $parts['fragment']) : '';
 
         return $scheme . '://' . $userInfo . $host . $port . $path . $query . $fragment;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function extractPdfUrlsFromMetaRefresh(string $content): array
+    {
+        if (trim($content) === '') {
+            return [];
+        }
+
+        $matches = [];
+        if (!preg_match_all('/url\s*=\s*([^;]+)/i', $content, $matches)) {
+            return [];
+        }
+
+        $urls = [];
+        foreach ($matches[1] as $raw) {
+            $candidate = trim($raw, "\"' \t\r\n");
+            if ($candidate === '') {
+                continue;
+            }
+            if ($this->looksLikePdfUrl($candidate)) {
+                $urls[] = $candidate;
+            }
+        }
+
+        return $urls;
     }
 
     /**

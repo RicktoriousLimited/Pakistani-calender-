@@ -168,6 +168,46 @@
     }).join('');
   }
 
+  function resetChartSizing(canvas) {
+    if (!canvas) {
+      return;
+    }
+    const parent = canvas.parentElement;
+    if (parent instanceof HTMLElement) {
+      parent.style.removeProperty('height');
+      parent.style.removeProperty('max-height');
+    }
+    canvas.style.removeProperty('height');
+    canvas.style.removeProperty('max-height');
+  }
+
+  function desiredChartHeight(canvas) {
+    const parent = canvas && canvas.parentElement instanceof HTMLElement ? canvas.parentElement : null;
+    const width = parent ? parent.clientWidth : canvas.clientWidth;
+    if (width && width > 0) {
+      const scaled = Math.round(width * 0.45);
+      return Math.max(220, Math.min(380, scaled));
+    }
+    return 280;
+  }
+
+  function applyChartSizing(canvas, height) {
+    if (!canvas) {
+      return;
+    }
+    const parent = canvas.parentElement;
+    if (parent instanceof HTMLElement) {
+      if (!parent.style.position) {
+        parent.style.position = 'relative';
+      }
+      parent.style.height = `${height}px`;
+      parent.style.maxHeight = `${height}px`;
+    }
+    canvas.height = height;
+    canvas.style.height = `${height}px`;
+    canvas.style.maxHeight = `${height}px`;
+  }
+
   function renderChart(daily) {
     const canvas = document.getElementById('insightChart');
     if (!canvas) return;
@@ -175,6 +215,7 @@
       chart.destroy();
       chart = null;
     }
+    resetChartSizing(canvas);
     const ctx = canvas.getContext('2d');
     if (!daily.length) {
       if (ctx) {
@@ -187,6 +228,8 @@
       }
       return;
     }
+    const targetHeight = desiredChartHeight(canvas);
+    applyChartSizing(canvas, targetHeight);
     const labels = daily.map(row => row.label);
     const counts = daily.map(row => row.count);
     const hours = daily.map(row => row.totalHours);
@@ -246,6 +289,7 @@
         }
       }
     });
+    applyChartSizing(canvas, targetHeight);
   }
 
   function renderAll(data) {
