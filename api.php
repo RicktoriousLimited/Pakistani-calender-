@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 use SHUTDOWN\Scraper\LescoScraper;
+use SHUTDOWN\Util\Analytics;
 use SHUTDOWN\Util\Exporter;
 use SHUTDOWN\Util\Store;
 
@@ -141,6 +142,16 @@ try {
         case 'changelog':
             $limit = isset($_GET['limit']) ? max(1, (int) $_GET['limit']) : 50;
             jsonOut(['ok' => true, 'entries' => $store->readChangelog($limit)]);
+            break;
+
+        case 'forecast':
+            $data = $store->readSchedule();
+            $cfg = $store->readConfig();
+            $timezone = (string) ($cfg['timezone'] ?? 'Asia/Karachi');
+            $analytics = new Analytics($timezone);
+            $forecast = $analytics->forecast($data['items'] ?? []);
+            $forecast['scheduleUpdatedAt'] = $data['updatedAt'] ?? null;
+            jsonOut($forecast);
             break;
 
         default:

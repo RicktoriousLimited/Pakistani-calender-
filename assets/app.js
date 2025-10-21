@@ -109,4 +109,8 @@ document.getElementById('searchBtn').addEventListener('click', go);
 });
 document.getElementById('date').addEventListener('change', go);
 document.getElementById('division').addEventListener('change', go);
+window.shutdownHelpers = Object.assign({}, window.shutdownHelpers || {}, {
+  formatDate: fmt,
+  badgeClass: badge,
+});
 window.addEventListener('DOMContentLoaded', ()=>{ initDivisions().then(go); });
