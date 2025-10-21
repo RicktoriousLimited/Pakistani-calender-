@@ -1,0 +1,20 @@
+{
+  "allama iqbal town": {
+    "division": "Lahore East"
+  },
+  "mozang": {
+    "division": "Lahore West"
+  },
+  "garden town": {
+    "division": "Lahore Central"
+  },
+  "gulberg": {
+    "division": "Lahore Central"
+  },
+  "dha": {
+    "division": "Lahore South"
+  },
+  "walled city": {
+    "division": "Lahore North"
+  }
+}

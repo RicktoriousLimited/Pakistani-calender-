@@ -1,0 +1,29 @@
+{
+  "updatedAt": null,
+  "items": [
+    {
+      "utility": "LESCO",
+      "area": "Allama Iqbal Town",
+      "feeder": "ALI PARK 16720",
+      "start": "2025-10-22T07:00:00+05:00",
+      "end": "2025-10-22T14:00:00+05:00",
+      "type": "maintenance",
+      "reason": "Conductor stringing",
+      "source": "official",
+      "url": "https://www.lesco.gov.pk/LoadSheddingShutdownSchedule",
+      "confidence": 0.7
+    },
+    {
+      "utility": "LESCO",
+      "area": "Mozang",
+      "feeder": "STATE BANK 16715",
+      "start": "2025-10-22T09:00:00+05:00",
+      "end": "2025-10-22T15:00:00+05:00",
+      "type": "scheduled",
+      "reason": "Area development work",
+      "source": "facebook",
+      "url": "https://www.facebook.com/PRLESCO/",
+      "confidence": 0.6
+    }
+  ]
+}
