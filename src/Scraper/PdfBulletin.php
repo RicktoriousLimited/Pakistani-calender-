@@ -17,13 +17,17 @@ class PdfBulletin implements SourceInterface
     /** @var array<int, string> */
     private array $fallbacks;
 
+    /** @var callable */
+    private $extractor;
+
     private string $resolvedUrl;
 
-    public function __construct(string $url, ?callable $fetcher = null, array $fallbacks = [])
+    public function __construct(string $url, ?callable $fetcher = null, array $fallbacks = [], ?callable $extractor = null)
     {
         $this->url = $url;
         $this->fetcher = $fetcher;
         $this->fallbacks = array_values(array_filter($fallbacks, static fn ($candidate) => is_string($candidate) && trim((string) $candidate) !== ''));
+        $this->extractor = $extractor ?? [PdfTextExtractor::class, 'extractText'];
         $this->resolvedUrl = $url;
     }
 
@@ -40,8 +44,9 @@ class PdfBulletin implements SourceInterface
             return [];
         }
 
-        $text = PdfTextExtractor::extractText($binary);
-        if ($text === '') {
+        $extractor = $this->extractor;
+        $text = $extractor($binary);
+        if (!is_string($text) || $text === '') {
             return [];
         }
 
@@ -309,6 +314,20 @@ class PdfBulletin implements SourceInterface
     private function parseText(string $text): array
     {
         $lines = preg_split('/\r?\n+/', $text) ?: [];
+        $tabular = $this->parseTabular($lines);
+        if (!empty($tabular)) {
+            return $tabular;
+        }
+
+        return $this->parseKeyValue($lines);
+    }
+
+    /**
+     * @param array<int, string> $lines
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseKeyValue(array $lines): array
+    {
         $items = [];
         $current = $this->emptyRecord();
 
@@ -360,6 +379,467 @@ class PdfBulletin implements SourceInterface
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<int, string> $lines
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseTabular(array $lines): array
+    {
+        $tokens = [];
+        $window = [];
+        $tableStarted = false;
+
+        foreach ($lines as $rawLine) {
+            $line = $this->cleanLine($rawLine);
+            if ($line === '') {
+                continue;
+            }
+
+            $lower = strtolower($line);
+            $window[] = $lower;
+            if (count($window) > 6) {
+                array_shift($window);
+            }
+
+            if (!$tableStarted) {
+                $joined = implode(' ', $window);
+                if (str_contains($joined, 'shutdown') && str_contains($joined, 'date')) {
+                    $tableStarted = true;
+                    $window = [];
+                    continue;
+                }
+                if ((str_contains($joined, 'start time') && str_contains($joined, 'end time')) || str_contains($joined, 'remarks')) {
+                    $tableStarted = true;
+                    $window = [];
+                    continue;
+                }
+                continue;
+            }
+
+            if ($this->isTableHeaderToken($line)) {
+                continue;
+            }
+
+            $tokens[] = $line;
+        }
+
+        if (empty($tokens)) {
+            return [];
+        }
+
+        $items = [];
+        $current = $this->emptyTableRow();
+
+        foreach ($tokens as $token) {
+            if ($this->isRowStartToken($token)) {
+                if ($this->tableRowComplete($current)) {
+                    $item = $this->finalizeTableRow($current);
+                    if ($item !== null) {
+                        $items[] = $item;
+                    }
+                }
+                $current = $this->emptyTableRow();
+                continue;
+            }
+
+            if ($current['date'] === '' && $this->looksLikeDateValue($token)) {
+                $current['date'] = $token;
+                continue;
+            }
+
+            if ($current['date'] !== '' && $this->assignTimeToken($current, $token)) {
+                continue;
+            }
+
+            if ($current['date'] !== '' && ($current['start'] !== '' || $current['end'] !== '')) {
+                if ($this->isTimeBridge($token)) {
+                    continue;
+                }
+                $current['remarks'][] = $token;
+                continue;
+            }
+
+            $current['prefix'][] = $token;
+        }
+
+        if ($this->tableRowComplete($current)) {
+            $item = $this->finalizeTableRow($current);
+            if ($item !== null) {
+                $items[] = $item;
+            }
+        }
+
+        return $items;
+    }
+
+    private function cleanLine(string $line): string
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return '';
+        }
+        $line = preg_replace('/\s+/u', ' ', $line) ?? $line;
+        return trim($line);
+    }
+
+    private function isTableHeaderToken(string $line): bool
+    {
+        $normalized = strtolower($line);
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+        $normalized = trim($normalized);
+        if ($normalized === '') {
+            return true;
+        }
+        $headers = [
+            'serial',
+            'serial no',
+            'sr',
+            'sr.',
+            'sr no',
+            'sr. no',
+            'sr.no',
+            's.no',
+            'no',
+            'no.',
+            'division',
+            'circle',
+            'sub division',
+            'sub-division',
+            'subdivision',
+            'area',
+            'feeder',
+            'feeder name',
+            'feeder code',
+            'name of feeder',
+            'shutdown date',
+            'date',
+            'start time',
+            'start',
+            'end time',
+            'end',
+            'remarks',
+            'reason',
+            'nature of work',
+            'type of work',
+            'description',
+            'grid station',
+            'grid',
+        ];
+        return in_array($normalized, $headers, true);
+    }
+
+    private function isRowStartToken(string $token): bool
+    {
+        if ($token === '') {
+            return false;
+        }
+        if (preg_match('/^\d+[.)]?$/', str_replace(' ', '', $token))) {
+            return true;
+        }
+        return false;
+    }
+
+    private function looksLikeDateValue(string $value): bool
+    {
+        return (bool) preg_match('/\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}/', $value)
+            || (bool) preg_match('/\d{4}[-\/.]\d{2}[-\/.]\d{2}/', $value);
+    }
+
+    /**
+     * @param array{prefix: array<int, string>, date: string, start: string, end: string, remarks: array<int, string>} $row
+     */
+    private function assignTimeToken(array &$row, string $token): bool
+    {
+        $times = $this->extractTimes($token);
+        if (count($times) >= 2) {
+            if ($row['start'] === '') {
+                $row['start'] = $times[0];
+            }
+            if ($row['end'] === '') {
+                $row['end'] = $times[1];
+            }
+            return true;
+        }
+
+        if ($row['start'] === '' && $this->looksLikeTimeValue($token)) {
+            $row['start'] = $token;
+            return true;
+        }
+
+        if ($row['start'] !== '' && $row['end'] === '' && $this->isTimeSuffix($token)) {
+            $row['start'] .= ' ' . $this->normalizeTimeSuffix($token);
+            return true;
+        }
+
+        if ($row['start'] !== '' && $row['end'] === '' && $this->looksLikeTimeValue($token)) {
+            $row['end'] = $token;
+            return true;
+        }
+
+        if ($row['end'] !== '' && $this->isTimeSuffix($token)) {
+            $row['end'] .= ' ' . $this->normalizeTimeSuffix($token);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function extractTimes(string $value): array
+    {
+        if (!preg_match_all('/\d{1,2}:\d{2}\s*(?:[APap]\.?M\.?)?/', $value, $matches)) {
+            return [];
+        }
+        return array_map(static function (string $time): string {
+            $time = preg_replace('/\s+/', ' ', $time) ?? $time;
+            $time = str_ireplace(['a.m.', 'p.m.'], ['AM', 'PM'], $time);
+            $time = str_ireplace([' am', ' pm'], [' AM', ' PM'], $time);
+            return trim($time);
+        }, $matches[0]);
+    }
+
+    private function looksLikeTimeValue(string $value): bool
+    {
+        if (preg_match('/\d{1,2}:\d{2}/', $value)) {
+            return true;
+        }
+        if (preg_match('/^\d{3,4}$/', preg_replace('/\D/', '', $value) ?? '')) {
+            return true;
+        }
+        return false;
+    }
+
+    private function isTimeSuffix(string $token): bool
+    {
+        $normalized = strtolower(str_replace('.', '', $token));
+        return in_array($normalized, ['am', 'pm'], true);
+    }
+
+    private function normalizeTimeSuffix(string $token): string
+    {
+        $normalized = strtolower(str_replace('.', '', $token));
+        return strtoupper($normalized);
+    }
+
+    private function isTimeBridge(string $token): bool
+    {
+        $normalized = strtolower(str_replace('.', '', $token));
+        $normalized = preg_replace('/\s+/', '', $normalized) ?? $normalized;
+        if ($normalized === '') {
+            return false;
+        }
+        return in_array($normalized, ['to', 'upto', 'till', 'until', '-', '—', '–', 'hrs', 'hours', 'hr'], true);
+    }
+
+    /**
+     * @return array{prefix: array<int, string>, date: string, start: string, end: string, remarks: array<int, string>}
+     */
+    private function emptyTableRow(): array
+    {
+        return [
+            'prefix' => [],
+            'date' => '',
+            'start' => '',
+            'end' => '',
+            'remarks' => [],
+        ];
+    }
+
+    /**
+     * @param array{prefix: array<int, string>, date: string, start: string, end: string, remarks: array<int, string>} $row
+     */
+    private function tableRowComplete(array $row): bool
+    {
+        if (empty($row['prefix'])) {
+            return false;
+        }
+        if ($row['date'] === '') {
+            return false;
+        }
+        if ($row['start'] === '' && $row['end'] === '') {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @param array{prefix: array<int, string>, date: string, start: string, end: string, remarks: array<int, string>} $row
+     */
+    private function finalizeTableRow(array $row): ?array
+    {
+        [$area, $feeder] = $this->splitAreaFeeder($row['prefix']);
+        if ($area === '' && $feeder === '') {
+            return null;
+        }
+
+        $record = $this->emptyRecord();
+        $record['area'] = $area;
+        $record['feeder'] = $feeder;
+        $record['start'] = $this->combineDateTime($row['date'], $row['start']);
+        $record['end'] = $this->combineDateTime($row['date'], $row['end'] !== '' ? $row['end'] : $row['start']);
+        $record['reason'] = trim(implode(' ', $row['remarks']));
+
+        if (!$this->isComplete($record)) {
+            return null;
+        }
+
+        return $this->finalize($record);
+    }
+
+    /**
+     * @param array<int, string> $tokens
+     * @return array{0: string, 1: string}
+     */
+    private function splitAreaFeeder(array $tokens): array
+    {
+        $tokens = array_values(array_filter(array_map('trim', $tokens), static fn ($token) => $token !== ''));
+        if (empty($tokens)) {
+            return ['', ''];
+        }
+
+        $feederStart = null;
+        for ($i = count($tokens) - 1; $i >= 0; $i--) {
+            if ($this->looksLikeFeederToken($tokens[$i])) {
+                $feederStart = $i;
+            } elseif ($feederStart !== null) {
+                break;
+            }
+        }
+
+        if ($feederStart === null) {
+            return [$this->formatAreaTokens($tokens), ''];
+        }
+
+        $areaTokens = array_slice($tokens, 0, $feederStart);
+        $feederTokens = array_slice($tokens, $feederStart);
+
+        if (empty($areaTokens)) {
+            $areaTokens = $feederTokens;
+            $feederTokens = [];
+        }
+
+        return [$this->formatAreaTokens($areaTokens), $this->formatFeederTokens($feederTokens)];
+    }
+
+    private function looksLikeFeederToken(string $token): bool
+    {
+        if ($token === '') {
+            return false;
+        }
+        if (preg_match('/\d/', $token)) {
+            return true;
+        }
+        if (preg_match('/\b(11\s*-?kv|gss|grid|feeder)\b/i', $token)) {
+            return true;
+        }
+        if (preg_match('/^f[\s\-]?\d+/i', $token)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $tokens
+     */
+    private function formatAreaTokens(array $tokens): string
+    {
+        if (empty($tokens)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($tokens as $token) {
+            $token = preg_replace('/\b(circle|division|sub\s*-?division|grid\s*station)\b/i', '', $token) ?? $token;
+            $token = preg_replace('/\s+/', ' ', $token) ?? $token;
+            $token = trim($token);
+            if ($token !== '') {
+                $parts[] = $token;
+            }
+        }
+        $parts = array_values(array_unique($parts));
+        if (empty($parts)) {
+            return '';
+        }
+        return implode(' | ', $parts);
+    }
+
+    /**
+     * @param array<int, string> $tokens
+     */
+    private function formatFeederTokens(array $tokens): string
+    {
+        if (empty($tokens)) {
+            return '';
+        }
+        $joined = preg_replace('/\s+/', ' ', implode(' ', $tokens)) ?? '';
+        $joined = preg_replace('/\b(feeder|name|code)\b/i', '', $joined) ?? $joined;
+        return trim($joined);
+    }
+
+    private function combineDateTime(string $date, string $time): string
+    {
+        $date = $this->normalizeDateValue($date);
+        $time = $this->normalizeTimeValue($time);
+        $date = trim($date);
+        $time = trim($time);
+
+        if ($date === '') {
+            return '';
+        }
+
+        $input = trim($date . ' ' . $time);
+        try {
+            $tz = new \DateTimeZone('Asia/Karachi');
+            $dt = new \DateTime($input, $tz);
+            return $dt->format(\DateTime::ATOM);
+        } catch (\Exception $e) {
+            return $input;
+        }
+    }
+
+    private function normalizeDateValue(string $date): string
+    {
+        $date = trim($date);
+        if ($date === '') {
+            return '';
+        }
+        $date = str_replace('.', '-', str_replace('/', '-', $date));
+        if (preg_match('/^(\d{2})-(\d{2})-(\d{4})$/', $date, $m)) {
+            return sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+        }
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m)) {
+            return sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
+        }
+        if (preg_match('/^(\d{2})-(\d{2})-(\d{2})$/', $date, $m)) {
+            $year = (int) $m[3];
+            $year += $year < 50 ? 2000 : 1900;
+            return sprintf('%04d-%02d-%02d', $year, (int) $m[2], (int) $m[1]);
+        }
+        return $date;
+    }
+
+    private function normalizeTimeValue(string $time): string
+    {
+        $time = trim($time);
+        if ($time === '') {
+            return '';
+        }
+        $time = str_ireplace(['a.m.', 'p.m.'], ['AM', 'PM'], $time);
+        $time = preg_replace('/\s+/', ' ', $time) ?? $time;
+        $digits = preg_replace('/\D/', '', $time) ?? '';
+        if (preg_match('/^\d{3,4}$/', $digits) && !str_contains($time, ':')) {
+            if (strlen($digits) === 3) {
+                $time = sprintf('%02d:%02d', (int) substr($digits, 0, 1), (int) substr($digits, 1));
+            } else {
+                $time = sprintf('%02d:%02d', (int) substr($digits, 0, 2), (int) substr($digits, 2));
+            }
+        }
+        $time = str_ireplace([' am', ' pm'], [' AM', ' PM'], $time);
+        return trim($time);
     }
 
     /**
