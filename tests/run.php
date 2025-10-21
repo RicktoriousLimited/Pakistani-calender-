@@ -271,6 +271,46 @@ test('PdfBulletin parses key value PDF bulletins', function (): void {
     assertTrue(strpos($items[1]['reason'], 'Tree') !== false);
 });
 
+test('PdfBulletin parses tabular PDF bulletins', function (): void {
+    $text = implode("\n", [
+        'Serial',
+        'Division',
+        'Sub Division',
+        'Feeder Name',
+        'Shutdown Date',
+        'Start Time',
+        'End Time',
+        'Remarks',
+        '1',
+        'Model Town',
+        'Garden Town',
+        'ALI PARK 16720',
+        '22-10-2025',
+        '08:00 AM',
+        '12:00 PM',
+        'Conductor stringing',
+        '2',
+        'Shalimar',
+        'Shad Bagh',
+        'SB-03',
+        '22-10-2025',
+        '09:00 AM',
+        '13:00 PM',
+        'Tree trimming',
+    ]);
+
+    $bulletin = new PdfBulletin('https://example.test/bulletin.pdf', fn () => 'PDF', [], fn () => $text);
+    $items = $bulletin->fetch();
+
+    assertCount(2, $items);
+    assertSame('Model Town | Garden Town', $items[0]['area']);
+    assertSame('ALI PARK 16720', $items[0]['feeder']);
+    assertSame('Conductor stringing', $items[0]['reason']);
+    assertTrue(strpos($items[0]['start'], '2025-10-22') === 0);
+    assertTrue(strpos($items[0]['end'], '2025-10-22') === 0);
+    assertSame('Tree trimming', $items[1]['reason']);
+});
+
 test('PdfBulletin discovers latest PDF from listing pages', function (): void {
     $html = file_get_contents(__DIR__ . '/support/sample-bulletin-listing.html');
     $pdf = file_get_contents(__DIR__ . '/support/sample-bulletin.pdf');

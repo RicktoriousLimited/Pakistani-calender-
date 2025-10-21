@@ -113,4 +113,9 @@ window.shutdownHelpers = Object.assign({}, window.shutdownHelpers || {}, {
   formatDate: fmt,
   badgeClass: badge,
 });
-window.addEventListener('DOMContentLoaded', ()=>{ initDivisions().then(go); });
+function boot(){ initDivisions().then(go); }
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
