@@ -32,7 +32,7 @@
 ## Sources (toggle in config.json)
 - **official**: LESCO shutdown table (HTML)
 - **facebook**: PR LESCO page parser (simple HTML text scrape; optional)
-- **ccms**: PITC CCMS placeholder (off by default)
+- **ccms**: PITC CCMS schedule feed (JSON/HTML, optional but recommended)
 - **manual**: local CSV overrides
 
 You can add more URLs to `storage/config.json` without code changes.
