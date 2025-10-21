@@ -105,6 +105,12 @@ test('Merge normalises and deduplicates', function (): void {
     assertTrue(strpos($normalized['start'] ?? '', '2025-01-01') === 0);
     assertSame(null, $normalized['end']);
 
+    $withInvertedTimes = Merge::normalize([
+        'start' => '2025-01-01T12:00:00+05:00',
+        'end' => '2025-01-01T08:00:00+05:00',
+    ]);
+    assertTrue(strtotime((string) $withInvertedTimes['end']) >= strtotime((string) $withInvertedTimes['start']));
+
     $merged = Merge::merge([
         [
             ['feeder' => 'F', 'start' => '2025-01-01T08:00:00+05:00', 'confidence' => 0.6, 'reason' => 'old'],
@@ -217,6 +223,29 @@ test('PdfBulletin parses key value PDF bulletins', function (): void {
     assertSame('Model Town', $items[0]['area']);
     assertSame('pdf', $items[0]['source']);
     assertTrue(strpos($items[1]['reason'], 'Tree') !== false);
+});
+
+test('PdfBulletin discovers latest PDF from listing pages', function (): void {
+    $html = file_get_contents(__DIR__ . '/support/sample-bulletin-listing.html');
+    $pdf = file_get_contents(__DIR__ . '/support/sample-bulletin.pdf');
+    assertTrue(is_string($html));
+    assertTrue(is_string($pdf));
+
+    $fetcher = function (string $url) use ($html, $pdf) {
+        if (str_ends_with($url, '.pdf')) {
+            return $pdf;
+        }
+        return $html;
+    };
+
+    $bulletin = new PdfBulletin('https://example.test/bulletins', $fetcher);
+    $items = $bulletin->fetch();
+    assertCount(2, $items);
+    assertSame('https://example.test/files/bulletins/2024-10-22-shutdown.pdf', $items[0]['url']);
+
+    $fallbackBulletin = new PdfBulletin('', $fetcher, ['https://example.test/bulletins']);
+    $fallbackItems = $fallbackBulletin->fetch();
+    assertCount(2, $fallbackItems);
 });
 
 test('Official scraper parses table', function (): void {

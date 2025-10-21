@@ -8,12 +8,23 @@ class Merge
      */
     public static function normalize(array $it): array
     {
+        $start = self::normalizeDate($it['start'] ?? null);
+        $end = self::normalizeDate($it['end'] ?? null);
+
+        if ($start !== null && $end !== null) {
+            $startTs = strtotime($start) ?: null;
+            $endTs = strtotime($end) ?: null;
+            if ($startTs !== null && $endTs !== null && $endTs < $startTs) {
+                $end = $start;
+            }
+        }
+
         return [
             'utility' => $it['utility'] ?? 'LESCO',
             'area' => trim((string)($it['area'] ?? '')),
             'feeder' => trim((string)($it['feeder'] ?? '')),
-            'start' => self::normalizeDate($it['start'] ?? null),
-            'end' => self::normalizeDate($it['end'] ?? null),
+            'start' => $start,
+            'end' => $end,
             'type' => $it['type'] ?? 'scheduled',
             'reason' => $it['reason'] ?? '',
             'source' => $it['source'] ?? '',
