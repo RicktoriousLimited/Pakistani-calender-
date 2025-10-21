@@ -48,6 +48,11 @@ class Store
                         'url' => 'https://ccms.pitc.com.pk/FeederDetails',
                         'note' => 'PITC CCMS official schedule (JSON/HTML)',
                     ],
+                    'pdf' => [
+                        'enabled' => true,
+                        'url' => '',
+                        'note' => 'Upload the latest bulletin PDF and point this URL to it',
+                    ],
                     'manual' => ['enabled' => true],
                 ],
             ];
@@ -263,6 +268,8 @@ class Store
         $dayStart = $date ? strtotime($date . ' 00:00:00') : null;
         $dayEnd = $date ? strtotime($date . ' 23:59:59') : null;
 
+        $hasFilters = $q !== '' || $area !== '' || $feeder !== '' || $division !== '' || !empty($date);
+
         $filtered = array_filter($items, static function ($it) use ($q, $area, $feeder, $division, $dayStart, $dayEnd) {
             $hay = strtolower(($it['area'] ?? '') . ' ' . ($it['feeder'] ?? '') . ' ' . ($it['reason'] ?? ''));
             if ($q && strpos($hay, $q) === false) {
@@ -285,8 +292,31 @@ class Store
             }
             return true;
         });
+        $filtered = array_values($filtered);
 
-        return array_values($filtered);
+        usort($filtered, static function ($a, $b): int {
+            return strcmp($a['start'] ?? '', $b['start'] ?? '');
+        });
+
+        if (!$hasFilters) {
+            $now = time();
+            $upcoming = array_filter($filtered, static function ($it) use ($now) {
+                if (empty($it['start'])) {
+                    return true;
+                }
+                $ts = strtotime((string) $it['start']);
+                if ($ts === false) {
+                    return true;
+                }
+                return $ts >= $now - 3600;
+            });
+            if (!empty($upcoming)) {
+                $filtered = array_values($upcoming);
+            }
+            $filtered = array_slice($filtered, 0, 200);
+        }
+
+        return $filtered;
     }
 
     public function readHistory(string $day): array

@@ -14,8 +14,10 @@ use SHUTDOWN\Scraper\CCMS;
 use SHUTDOWN\Scraper\FacebookPR;
 use SHUTDOWN\Scraper\LescoScraper;
 use SHUTDOWN\Scraper\Official;
+use SHUTDOWN\Scraper\PdfBulletin;
 use SHUTDOWN\Util\Exporter;
 use SHUTDOWN\Util\Merge;
+use SHUTDOWN\Util\PdfTextExtractor;
 use SHUTDOWN\Util\Store;
 use Tests\Support\FakeSource;
 use Tests\Support\ThrowingSource;
@@ -135,8 +137,8 @@ test('Store append/read/manual/filter/history', function (): void {
             'utility' => 'LESCO',
             'area' => 'Model Town',
             'feeder' => 'F1',
-            'start' => '2025-03-01T08:00:00+05:00',
-            'end' => '2025-03-01T10:00:00+05:00',
+            'start' => '2099-03-01T08:00:00+05:00',
+            'end' => '2099-03-01T10:00:00+05:00',
             'type' => 'maintenance',
         ]);
         assertSame('Model Town', $entry['area']);
@@ -149,10 +151,12 @@ test('Store append/read/manual/filter/history', function (): void {
         assertCount(1, $filtered);
         $filteredNone = $store->filterItems($schedule['items'], ['division' => 'lahore south']);
         assertCount(0, $filteredNone);
-        $filteredDate = $store->filterItems($schedule['items'], ['date' => '2025-03-01']);
+        $filteredDate = $store->filterItems($schedule['items'], ['date' => '2099-03-01']);
         assertCount(1, $filteredDate);
-        $filteredDateNone = $store->filterItems($schedule['items'], ['date' => '2025-03-02']);
+        $filteredDateNone = $store->filterItems($schedule['items'], ['date' => '2099-03-02']);
         assertCount(0, $filteredDateNone);
+        $defaultList = $store->filterItems($schedule['items'], []);
+        assertCount(1, $defaultList);
         $day = gmdate('Y-m-d');
         $history = $store->readHistory($day);
         assertCount(1, $history);
@@ -193,6 +197,26 @@ test('Store backup generates zip archive', function (): void {
         assertTrue(is_file($zip));
         assertTrue(filesize($zip) > 0);
     });
+});
+
+test('PdfTextExtractor extracts text from bulletin', function (): void {
+    $pdf = file_get_contents(__DIR__ . '/support/sample-bulletin.pdf');
+    assertTrue(is_string($pdf) && $pdf !== '');
+    $text = PdfTextExtractor::extractText($pdf);
+    assertTrue(strpos($text, 'Area: Model Town') !== false);
+    $lines = preg_split('/\n/', $text);
+    assertTrue(is_array($lines) && count($lines) >= 6);
+});
+
+test('PdfBulletin parses key value PDF bulletins', function (): void {
+    $pdf = file_get_contents(__DIR__ . '/support/sample-bulletin.pdf');
+    assertTrue(is_string($pdf));
+    $bulletin = new PdfBulletin('https://example.test/bulletin.pdf', fn () => $pdf);
+    $items = $bulletin->fetch();
+    assertCount(2, $items);
+    assertSame('Model Town', $items[0]['area']);
+    assertSame('pdf', $items[0]['source']);
+    assertTrue(strpos($items[1]['reason'], 'Tree') !== false);
 });
 
 test('Official scraper parses table', function (): void {
@@ -265,6 +289,7 @@ test('LescoScraper merges sources and reports', function (): void {
         $cfg['sources']['manual']['enabled'] = true;
         $cfg['sources']['facebook']['enabled'] = false;
         $cfg['sources']['ccms']['enabled'] = false;
+        $cfg['sources']['pdf']['enabled'] = false;
         $store->writeConfig($cfg);
 
         $factory = [
@@ -308,6 +333,7 @@ test('LescoScraper reports source failure', function (): void {
         $cfg['sources']['official']['enabled'] = true;
         $cfg['sources']['manual']['enabled'] = false;
         $cfg['sources']['ccms']['enabled'] = false;
+        $cfg['sources']['pdf']['enabled'] = false;
         $store->writeConfig($cfg);
         $scraper = new LescoScraper($store, ['official' => fn () => new ThrowingSource()]);
         $items = $scraper->fetch();
