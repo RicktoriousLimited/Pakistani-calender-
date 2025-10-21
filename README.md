@@ -3,6 +3,7 @@
 **Highlights**
 - **Rich UI**: refreshed Bootstrap 5 interface with division-aware filtering, hero summary, responsive tables and interactive map
 - **Admin console**: ingestion/probe dashboard, manual entry form, history/changelog viewers, quick stats and one-click storage backups
+- **Forecast insights**: seven-day analytics with charts, top-division breakdowns, type mix and longest work to help teams plan ahead
 - **Data safety**: daily history snapshots (`storage/history/YYYY-MM-DD.json`) plus append-only change log (`storage/changelog.ndjson`)
 - **Exports everywhere**: CSV/ICS/PDF downloads from the search view and REST export endpoint (`api.php?route=export`)
 - **Configurable sources**: manage official tables, PDF bulletins, Facebook PR posts, CCMS feeds and manual overrides via `storage/config.json`
@@ -22,6 +23,7 @@
 | `api.php?route=ingest` | GET | Fetch all enabled sources, merge and persist schedule. |
 | `api.php?route=probe` | GET | Dry run fetch with per-source counts/sample items. |
 | `api.php?route=divisions` | GET | Return configured division names. |
+| `api.php?route=forecast` | GET | Seven-day forecast with daily counts, duration totals, type mix and upcoming highlights. |
 | `api.php?route=export&format=csv` | GET | Export filtered schedule as CSV (`ics`/`json` also supported). |
 | `api.php?route=addManual` | POST | Append a single manual CSV entry. |
 | `api.php?route=history&day=YYYY-MM-DD` | GET | Retrieve historical snapshot for a day. |
@@ -37,6 +39,13 @@
 - **manual**: local CSV overrides
 
 You can add more URLs to `storage/config.json` without code changes.
+
+## Reference sources
+
+- Lahore Electric Supply Company planned shutdown listings (HTML tables and PDF bulletins): <https://www.lesco.gov.pk/LoadSheddingShutdownSchedule>
+- PITC CCMS Feeder Details feed used by Pakistani power distribution companies: <https://ccms.pitc.com.pk/FeederDetails>
+- PR LESCO public announcements and urgent notices: <https://www.facebook.com/PRLESCO/>
+- Base cartography for the interactive map provided by OpenStreetMap contributors via Leaflet tiles: <https://www.openstreetmap.org>
 
 ## Testing
 

@@ -63,6 +63,7 @@ $lastUpdated = $schedule['updatedAt'] ?? $meta['mtime'] ?? null;
       <ul class="nav nav-tabs" role="tablist">
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#search" type="button">Search</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#maptab" type="button">Map</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#insights" type="button">Insights</button></li>
       </ul>
       <div class="tab-content p-3 border border-top-0 rounded-bottom bg-white">
         <div class="tab-pane fade show active" id="search">
@@ -106,6 +107,77 @@ $lastUpdated = $schedule['updatedAt'] ?? $meta['mtime'] ?? null;
           <div id="map" style="height:520px;border-radius:12px;overflow:hidden"></div>
           <div class="small text-muted mt-2">Polygons show area boundaries (approx). Colors: <span class="badge bg-info">Scheduled</span> <span class="badge bg-warning text-dark">Maintenance</span> <span class="badge bg-danger">Forced</span>.</div>
         </div>
+        <div class="tab-pane fade" id="insights">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div id="insightsMeta" class="text-muted small">Forecast upcoming work for the next seven days.</div>
+            <button class="btn btn-sm btn-outline-secondary" id="refreshInsights">Refresh forecast</button>
+          </div>
+          <div class="row g-3" id="insightSummary">
+            <div class="col-sm-6 col-lg-3">
+              <div class="insight-stat">
+                <div class="insight-stat-label">Upcoming outages</div>
+                <div class="insight-stat-value" id="insightCount">—</div>
+                <div class="insight-stat-foot">within 7 days</div>
+              </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+              <div class="insight-stat">
+                <div class="insight-stat-label">Total hours</div>
+                <div class="insight-stat-value" id="insightHours">—</div>
+                <div class="insight-stat-foot">sum of planned work</div>
+              </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+              <div class="insight-stat">
+                <div class="insight-stat-label">Within 24 hours</div>
+                <div class="insight-stat-value" id="insightSoon">—</div>
+                <div class="insight-stat-foot">starting by tomorrow</div>
+              </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+              <div class="insight-stat">
+                <div class="insight-stat-label">Distinct areas</div>
+                <div class="insight-stat-value" id="insightAreas">—</div>
+                <div class="insight-stat-foot">affected in window</div>
+              </div>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-lg-7">
+              <div class="insight-panel h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="insight-panel-title">Daily outlook</h6>
+                  <span class="badge bg-light text-muted" id="insightWindow">—</span>
+                </div>
+                <canvas id="insightChart" height="160"></canvas>
+                <div class="table-responsive mt-3">
+                  <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Day</th><th>Count</th><th>Hours</th><th>Areas</th></tr></thead>
+                    <tbody id="insightDaily"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-5">
+              <div class="insight-panel mb-3">
+                <div class="insight-panel-title">Next up (soonest five)</div>
+                <div id="insightUpcoming" class="small"></div>
+              </div>
+              <div class="insight-panel mb-3">
+                <div class="insight-panel-title">Divisions most impacted</div>
+                <ol id="insightDivisions" class="list-group list-group-numbered list-group-flush small mb-0"></ol>
+              </div>
+              <div class="insight-panel">
+                <div class="insight-panel-title">Outage mix by type</div>
+                <div id="insightTypes" class="small"></div>
+              </div>
+            </div>
+          </div>
+          <div class="insight-panel mt-3">
+            <div class="insight-panel-title">Longest planned work</div>
+            <div id="insightLongest" class="small"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -114,9 +186,11 @@ $lastUpdated = $schedule['updatedAt'] ?? $meta['mtime'] ?? null;
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="assets/app.js"></script>
 <script src="assets/export.js"></script>
 <script src="assets/map.js"></script>
+<script src="assets/insights.js"></script>
 <script>
   document.getElementById('btnCsvHero').addEventListener('click', () => document.getElementById('btnCsv').click());
   document.getElementById('btnIcsHero').addEventListener('click', () => document.getElementById('btnIcs').click());

@@ -15,6 +15,7 @@ use SHUTDOWN\Scraper\FacebookPR;
 use SHUTDOWN\Scraper\LescoScraper;
 use SHUTDOWN\Scraper\Official;
 use SHUTDOWN\Scraper\PdfBulletin;
+use SHUTDOWN\Util\Analytics;
 use SHUTDOWN\Util\Exporter;
 use SHUTDOWN\Util\Merge;
 use SHUTDOWN\Util\PdfTextExtractor;
@@ -170,6 +171,51 @@ test('Store append/read/manual/filter/history', function (): void {
         assertTrue(count($changelog) >= 1);
         assertTrue(in_array('Lahore Central', $store->listDivisions(), true));
     });
+});
+
+test('Analytics builds a seven day forecast', function (): void {
+    $analytics = new Analytics('Asia/Karachi');
+    $now = new DateTimeImmutable('2025-01-01T08:00:00+05:00');
+    $items = [
+        [
+            'area' => 'Model Town',
+            'division' => 'Lahore Central',
+            'feeder' => 'F1',
+            'start' => '2025-01-01T10:00:00+05:00',
+            'end' => '2025-01-01T12:30:00+05:00',
+            'type' => 'maintenance',
+            'reason' => 'Tree trimming',
+        ],
+        [
+            'area' => 'Johar Town',
+            'division' => 'Lahore East',
+            'feeder' => 'JT-09',
+            'start' => '2025-01-02T09:00:00+05:00',
+            'end' => '2025-01-02T11:00:00+05:00',
+            'type' => 'forced',
+        ],
+        [
+            'area' => 'Past Event',
+            'start' => '2024-12-28T09:00:00+05:00',
+            'end' => '2024-12-28T10:00:00+05:00',
+        ],
+        [
+            'area' => 'Future Outside Window',
+            'start' => '2025-01-10T09:00:00+05:00',
+            'end' => '2025-01-10T10:00:00+05:00',
+        ],
+    ];
+
+    $forecast = $analytics->forecast($items, 7, $now);
+
+    assertTrue($forecast['ok']);
+    assertSame(2, $forecast['totals']['count']);
+    assertSame(1, $forecast['totals']['within24h']);
+    assertCount(2, $forecast['daily']);
+    assertSame('Lahore Central', $forecast['divisions'][0]['division']);
+    assertSame('MAINTENANCE', $forecast['types'][0]['type']);
+    assertSame('2025-01-01T10:00:00+05:00', $forecast['upcoming'][0]['start']);
+    assertSame('Model Town', $forecast['longest'][0]['area']);
 });
 
 test('Exporter formats outputs', function (): void {
