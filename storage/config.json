@@ -3,8 +3,11 @@
   "sources": {
     "official": {
       "enabled": true,
-      "url": "https://www.lesco.gov.pk/LoadSheddingShutdownSchedule",
+      "url": "https://www.lesco.gov.pk/shutdownschedule",
       "discover": [
+        "https://www.lesco.gov.pk/shutdownschedule",
+        "https://www.lesco.gov.pk/TBR",
+        "https://www.lesco.gov.pk/tbr",
         "https://www.lesco.gov.pk/LoadSheddingShutdownSchedule",
         "https://www.lesco.gov.pk/LoadManagement",
         "https://www.lesco.gov.pk/~/LoadManagement",
@@ -24,6 +27,9 @@
       "enabled": true,
       "url": "",
       "discover": [
+        "https://www.lesco.gov.pk/shutdownschedule",
+        "https://www.lesco.gov.pk/TBR",
+        "https://www.lesco.gov.pk/tbr",
         "https://www.lesco.gov.pk/LoadSheddingShutdownSchedule",
         "https://www.lesco.gov.pk/LoadManagement",
         "https://www.lesco.gov.pk/~/LoadManagement",

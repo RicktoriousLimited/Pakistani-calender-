@@ -366,6 +366,37 @@ test('PdfBulletin discovers latest PDF from listing pages', function (): void {
     assertCount(2, $fallbackItems);
 });
 
+test('PdfBulletin discovers PDFs with spaces in the path', function (): void {
+    $requests = [];
+    $html = '<a href="Notice_files/SDLS/Shutdown Schedule TBR.pdf">Download</a>';
+    $pdfText = implode("\n", [
+        'Area: Model Town',
+        'Feeder: F-1',
+        'Start: 22-10-2025 08:00',
+        'End: 22-10-2025 12:00',
+        'Reason: Maintenance',
+    ]);
+
+    $fetcher = function (string $url) use (&$requests, $html) {
+        $requests[] = $url;
+        if (str_ends_with($url, '.pdf')) {
+            return '%PDF';
+        }
+        return $html;
+    };
+
+    $extractor = fn (string $binary): string => $pdfText;
+
+    $bulletin = new PdfBulletin('https://example.test/tbr', $fetcher, [], $extractor);
+    $items = $bulletin->fetch();
+
+    assertCount(2, $requests);
+    assertSame('https://example.test/Notice_files/SDLS/Shutdown%20Schedule%20TBR.pdf', $requests[1]);
+    assertCount(1, $items);
+    assertSame('Model Town', $items[0]['area']);
+    assertSame('F-1', $items[0]['feeder']);
+});
+
 test('Official scraper parses table', function (): void {
     $html = '<table><tr><td>Area 1</td><td>F-1</td><td>2025-04-01 08:00</td><td>2025-04-01 10:00</td><td>Maintenance</td></tr></table>';
     $official = new Official('https://example.test', fn (string $url) => $html);

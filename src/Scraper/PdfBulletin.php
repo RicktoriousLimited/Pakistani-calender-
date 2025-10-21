@@ -114,6 +114,9 @@ class PdfBulletin implements SourceInterface
     private function defaultDiscoveryPages(): array
     {
         return [
+            'https://www.lesco.gov.pk/shutdownschedule',
+            'https://www.lesco.gov.pk/TBR',
+            'https://www.lesco.gov.pk/tbr',
             'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule',
             'https://www.lesco.gov.pk/LoadManagement',
             'https://www.lesco.gov.pk/~/LoadManagement',
@@ -200,13 +203,26 @@ class PdfBulletin implements SourceInterface
         if ($href === '') {
             return '';
         }
+
+        if (function_exists('html_entity_decode')) {
+            $flags = ENT_QUOTES;
+            if (defined('ENT_HTML5')) {
+                $flags |= ENT_HTML5;
+            }
+            $href = html_entity_decode($href, $flags, 'UTF-8');
+        }
+
         if (preg_match('#^[a-zA-Z][a-zA-Z0-9+\-.]*://#', $href)) {
-            return $href;
+            return $this->encodeAbsoluteUrl($href);
         }
 
         $baseParts = parse_url($baseUrl);
         if (!is_array($baseParts) || empty($baseParts['scheme']) || empty($baseParts['host'])) {
-            return $href;
+            return $this->encodeAbsoluteUrl($href);
+        }
+
+        if (str_starts_with($href, '//')) {
+            return $this->encodeAbsoluteUrl(($baseParts['scheme'] ?? 'https') . ':' . $href);
         }
 
         $fragment = '';
@@ -230,10 +246,11 @@ class PdfBulletin implements SourceInterface
             $baseDir = preg_replace('#/[^/]*$#', '/', $basePath) ?? '/';
             $normalized = $this->normalizePath($baseDir . $path);
         }
+        $encodedPath = $this->encodePath($normalized);
 
         $port = isset($baseParts['port']) ? ':' . $baseParts['port'] : '';
 
-        return $baseParts['scheme'] . '://' . $baseParts['host'] . $port . $normalized . $query . $fragment;
+        return $baseParts['scheme'] . '://' . $baseParts['host'] . $port . $encodedPath . $this->encodeQueryFragment($query) . $this->encodeQueryFragment($fragment);
     }
 
     private function normalizePath(string $path): string
@@ -251,6 +268,80 @@ class PdfBulletin implements SourceInterface
         }
 
         return '/' . implode('/', $segments);
+    }
+
+    private function encodePath(string $path): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        $leadingSlash = $path[0] === '/';
+        $segments = explode('/', $path);
+        foreach ($segments as $index => $segment) {
+            if ($segment === '' && $leadingSlash && $index === 0) {
+                continue;
+            }
+            if ($segment === '') {
+                $segments[$index] = '';
+                continue;
+            }
+            $segments[$index] = rawurlencode(rawurldecode($segment));
+        }
+
+        $encoded = implode('/', $segments);
+        if ($leadingSlash && !str_starts_with($encoded, '/')) {
+            $encoded = '/' . $encoded;
+        }
+
+        return $encoded;
+    }
+
+    private function encodeQueryFragment(string $value): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        $prefix = $value[0];
+        if ($prefix !== '?' && $prefix !== '#') {
+            return str_replace(' ', '%20', $value);
+        }
+
+        $body = substr($value, 1);
+        if ($body === false) {
+            $body = '';
+        }
+
+        $body = preg_replace('/\s+/', '%20', $body) ?? $body;
+
+        return $prefix . $body;
+    }
+
+    private function encodeAbsoluteUrl(string $url): string
+    {
+        $parts = parse_url($url);
+        if (!is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+            return str_replace(' ', '%20', $url);
+        }
+
+        $scheme = $parts['scheme'];
+        $host = $parts['host'];
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+        $userInfo = '';
+        if (isset($parts['user'])) {
+            $userInfo = rawurlencode($parts['user']);
+            if (isset($parts['pass'])) {
+                $userInfo .= ':' . rawurlencode($parts['pass']);
+            }
+            $userInfo .= '@';
+        }
+
+        $path = $this->encodePath($parts['path'] ?? '');
+        $query = isset($parts['query']) ? '?' . preg_replace('/\s+/', '%20', $parts['query']) : '';
+        $fragment = isset($parts['fragment']) ? '#' . preg_replace('/\s+/', '%20', $parts['fragment']) : '';
+
+        return $scheme . '://' . $userInfo . $host . $port . $path . $query . $fragment;
     }
 
     /**

@@ -41,7 +41,7 @@ class Store
             $default = [
                 'timezone' => 'Asia/Karachi',
                 'sources' => [
-                    'official' => ['enabled' => true, 'url' => 'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule'],
+                    'official' => ['enabled' => true, 'url' => 'https://www.lesco.gov.pk/shutdownschedule'],
                     'facebook' => ['enabled' => false, 'url' => 'https://www.facebook.com/PRLESCO/'],
                     'ccms' => [
                         'enabled' => true,
@@ -52,6 +52,7 @@ class Store
                         'enabled' => true,
                         'url' => '',
                         'discover' => [
+                            'https://www.lesco.gov.pk/shutdownschedule',
                             'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule',
                             'https://www.lesco.gov.pk/LoadManagement',
                         ],

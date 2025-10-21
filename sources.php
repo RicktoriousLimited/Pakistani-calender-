@@ -49,7 +49,7 @@ $sources = $cfg['sources'] ?? [];
       <div class="mt-4">
         <h6 class="text-uppercase text-muted small mb-2">Primary reference sources</h6>
         <ul class="small text-muted mb-0">
-          <li><a href="https://www.lesco.gov.pk/LoadSheddingShutdownSchedule" target="_blank" rel="noopener">LESCO planned shutdown listings</a> — official HTML/PDF schedule.</li>
+          <li><a href="https://www.lesco.gov.pk/shutdownschedule" target="_blank" rel="noopener">LESCO planned shutdown listings</a> — official HTML/PDF schedule (also available via the <a href="https://www.lesco.gov.pk/TBR" target="_blank" rel="noopener">TBR mirror</a>).</li>
           <li><a href="https://ccms.pitc.com.pk/FeederDetails" target="_blank" rel="noopener">PITC CCMS feeder details</a> — JSON/HTML feed powering national dashboards.</li>
           <li><a href="https://www.facebook.com/PRLESCO/" target="_blank" rel="noopener">PR LESCO announcements</a> — urgent notices and manual updates.</li>
           <li><a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap contributors</a> — base cartography served via Leaflet.</li>

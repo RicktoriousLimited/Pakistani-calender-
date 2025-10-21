@@ -42,7 +42,7 @@ You can add more URLs to `storage/config.json` without code changes.
 
 ## Reference sources
 
-- Lahore Electric Supply Company planned shutdown listings (HTML tables and PDF bulletins): <https://www.lesco.gov.pk/LoadSheddingShutdownSchedule>
+- Lahore Electric Supply Company planned shutdown listings (HTML tables and PDF bulletins): <https://www.lesco.gov.pk/shutdownschedule> (mirrored at <https://www.lesco.gov.pk/TBR>)
 - PITC CCMS Feeder Details feed used by Pakistani power distribution companies: <https://ccms.pitc.com.pk/FeederDetails>
 - PR LESCO public announcements and urgent notices: <https://www.facebook.com/PRLESCO/>
 - Base cartography for the interactive map provided by OpenStreetMap contributors via Leaflet tiles: <https://www.openstreetmap.org>
