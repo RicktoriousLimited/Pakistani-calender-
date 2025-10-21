@@ -53,10 +53,10 @@ function render(items, updatedAt, total){
   currentItems = items;
   currentPage = 1;
   totalItems = total ?? items.length;
-  draw();
+  renderPage();
   document.getElementById('meta').textContent = `Updated: ${updatedAt ? new Date(updatedAt).toLocaleString() : '—'} • Showing ${items.length} of ${totalItems} result(s)`;
 }
-function draw(){
+function renderPage(){
   const pageItems = paginate(currentItems, currentPage, perPage);
   const container = document.getElementById('grouped');
   container.innerHTML='';
@@ -67,17 +67,17 @@ function draw(){
     container.appendChild(empty);
   } else {
     const byDate = groupBy(pageItems, it => (it.start||'').slice(0,10));
-    for (const [date, arr] of byDate){
+    for (const [date, arr] of byDate.entries()){
       const block = document.createElement('div'); block.className='grp';
       const h = document.createElement('div'); h.className='thead'; h.textContent = date || 'No date';
       block.appendChild(h);
-      block.innerHTML += renderTable(arr);
+      block.insertAdjacentHTML('beforeend', renderTable(arr));
       container.appendChild(block);
     }
   }
   document.getElementById('pager').innerHTML = pager(currentItems.length, currentPage, perPage);
   document.querySelectorAll('#pager .page-link').forEach(a=>a.addEventListener('click', e=>{
-    currentPage = parseInt(e.target.getAttribute('data-page'),10); draw();
+    currentPage = parseInt(e.target.getAttribute('data-page'),10); renderPage();
   }));
 }
 async function go(){
