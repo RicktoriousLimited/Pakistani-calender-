@@ -5,7 +5,7 @@
 - **Admin console**: ingestion/probe dashboard, manual entry form, history/changelog viewers, quick stats and one-click storage backups
 - **Data safety**: daily history snapshots (`storage/history/YYYY-MM-DD.json`) plus append-only change log (`storage/changelog.ndjson`)
 - **Exports everywhere**: CSV/ICS/PDF downloads from the search view and REST export endpoint (`api.php?route=export`)
-- **Configurable sources**: manage official, Facebook, CCMS and manual feeds via `storage/config.json`
+- **Configurable sources**: manage official tables, PDF bulletins, Facebook PR posts, CCMS feeds and manual overrides via `storage/config.json`
 
 ## Quick Start
 1) Upload to Apache/PHP 8.1+.
@@ -18,7 +18,7 @@
 
 | Route | Method | Description |
 | --- | --- | --- |
-| `api.php?route=schedule` | GET | Filterable shutdown list (`q`, `area`, `feeder`, `division`, `date`). |
+| `api.php?route=schedule` | GET | Filterable shutdown list (`q`, `area`, `feeder`, `division`, `date`); empty filters return the next upcoming outages. |
 | `api.php?route=ingest` | GET | Fetch all enabled sources, merge and persist schedule. |
 | `api.php?route=probe` | GET | Dry run fetch with per-source counts/sample items. |
 | `api.php?route=divisions` | GET | Return configured division names. |
@@ -33,6 +33,7 @@
 - **official**: LESCO shutdown table (HTML)
 - **facebook**: PR LESCO page parser (simple HTML text scrape; optional)
 - **ccms**: PITC CCMS schedule feed (JSON/HTML, optional but recommended)
+- **pdf**: link to the latest published bulletin PDF (auto-parsed)
 - **manual**: local CSV overrides
 
 You can add more URLs to `storage/config.json` without code changes.

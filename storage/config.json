@@ -14,6 +14,11 @@
       "url": "https://ccms.pitc.com.pk/FeederDetails",
       "note": "PITC CCMS official schedule (JSON/HTML)"
     },
+    "pdf": {
+      "enabled": true,
+      "url": "",
+      "note": "Latest outage bulletin PDF"
+    },
     "manual": {
       "enabled": true
     }

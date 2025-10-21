@@ -4,6 +4,7 @@ namespace SHUTDOWN\Scraper;
 use SHUTDOWN\Parser\ManualCsv;
 use SHUTDOWN\Util\Merge;
 use SHUTDOWN\Util\Store;
+use SHUTDOWN\Scraper\PdfBulletin;
 
 class LescoScraper
 {
@@ -127,6 +128,7 @@ class LescoScraper
             'official' => new Official($url),
             'facebook' => new FacebookPR($url),
             'ccms' => new CCMS($url),
+            'pdf' => new PdfBulletin($url),
             default => null,
         };
     }
