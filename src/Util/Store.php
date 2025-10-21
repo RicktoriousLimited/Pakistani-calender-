@@ -51,7 +51,11 @@ class Store
                     'pdf' => [
                         'enabled' => true,
                         'url' => '',
-                        'note' => 'Upload the latest bulletin PDF and point this URL to it',
+                        'discover' => [
+                            'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule',
+                            'https://www.lesco.gov.pk/LoadManagement',
+                        ],
+                        'note' => 'Automatically discovers the latest bulletin when URL is empty',
                     ],
                     'manual' => ['enabled' => true],
                 ],

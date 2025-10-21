@@ -14,16 +14,28 @@ class PdfBulletin implements SourceInterface
     /** @var callable|null */
     private $fetcher;
 
-    public function __construct(string $url, ?callable $fetcher = null)
+    /** @var array<int, string> */
+    private array $fallbacks;
+
+    private string $resolvedUrl;
+
+    public function __construct(string $url, ?callable $fetcher = null, array $fallbacks = [])
     {
         $this->url = $url;
         $this->fetcher = $fetcher;
+        $this->fallbacks = array_values(array_filter($fallbacks, static fn ($candidate) => is_string($candidate) && trim((string) $candidate) !== ''));
+        $this->resolvedUrl = $url;
     }
 
     public function fetch(): array
     {
         $loader = $this->fetcher ?? [$this, 'download'];
-        $binary = $loader($this->url);
+        $pdfUrl = $this->resolvePdfUrl($loader);
+        if ($pdfUrl === null) {
+            return [];
+        }
+
+        $binary = $loader($pdfUrl);
         if (!is_string($binary) || $binary === '') {
             return [];
         }
@@ -33,7 +45,237 @@ class PdfBulletin implements SourceInterface
             return [];
         }
 
+        $this->resolvedUrl = $pdfUrl;
+
         return $this->parseText($text);
+    }
+
+    /**
+     * @param callable(string): (string|null) $loader
+     */
+    private function resolvePdfUrl(callable $loader): ?string
+    {
+        if ($this->looksLikePdfUrl($this->url)) {
+            return $this->url;
+        }
+
+        $candidates = [];
+        if ($this->url !== '') {
+            $candidates[] = $this->url;
+        }
+        foreach ($this->fallbacks as $fallback) {
+            $candidates[] = $fallback;
+        }
+        foreach ($this->defaultDiscoveryPages() as $default) {
+            $candidates[] = $default;
+        }
+
+        $visited = [];
+        foreach ($candidates as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+            if (isset($visited[$candidate])) {
+                continue;
+            }
+            $visited[$candidate] = true;
+
+            if ($this->looksLikePdfUrl($candidate)) {
+                return $candidate;
+            }
+
+            $html = $loader($candidate);
+            if (!is_string($html) || trim($html) === '') {
+                continue;
+            }
+
+            if (strncmp($html, '%PDF', 4) === 0) {
+                return $candidate;
+            }
+
+            $links = $this->extractPdfLinks($html, $candidate);
+            if (!empty($links)) {
+                return $links[0];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function defaultDiscoveryPages(): array
+    {
+        return [
+            'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule',
+            'https://www.lesco.gov.pk/LoadManagement',
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function extractPdfLinks(string $html, string $baseUrl): array
+    {
+        $links = [];
+        $previousLibxml = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        if (@$dom->loadHTML($html) !== false) {
+            $xpath = new \DOMXPath($dom);
+            foreach ($xpath->query('//*[@href]') as $node) {
+                if (!$node instanceof \DOMElement) {
+                    continue;
+                }
+                $href = trim($node->getAttribute('href'));
+                if ($href !== '' && $this->looksLikePdfUrl($href)) {
+                    $links[] = $this->absolutizeUrl($href, $baseUrl);
+                }
+                foreach (['data-href', 'data-url'] as $attr) {
+                    $candidate = trim($node->getAttribute($attr));
+                    if ($candidate !== '' && $this->looksLikePdfUrl($candidate)) {
+                        $links[] = $this->absolutizeUrl($candidate, $baseUrl);
+                    }
+                }
+                $onclick = $node->getAttribute('onclick');
+                if ($onclick !== '') {
+                    foreach ($this->extractPdfUrlsFromString($onclick) as $candidate) {
+                        $links[] = $this->absolutizeUrl($candidate, $baseUrl);
+                    }
+                }
+            }
+
+            foreach ($xpath->query('//*[@data-href or @data-url]') as $node) {
+                if (!$node instanceof \DOMElement) {
+                    continue;
+                }
+                foreach (['data-href', 'data-url'] as $attr) {
+                    $candidate = trim($node->getAttribute($attr));
+                    if ($candidate !== '' && $this->looksLikePdfUrl($candidate)) {
+                        $links[] = $this->absolutizeUrl($candidate, $baseUrl);
+                    }
+                }
+            }
+        }
+        if ($previousLibxml !== null) {
+            libxml_use_internal_errors($previousLibxml);
+        }
+
+        if (empty($links)) {
+            foreach ($this->extractPdfUrlsFromString($html) as $candidate) {
+                $links[] = $this->absolutizeUrl($candidate, $baseUrl);
+            }
+        }
+
+        $links = array_values(array_unique(array_filter($links)));
+
+        usort($links, function (string $a, string $b): int {
+            $scoreA = $this->scoreCandidate($a);
+            $scoreB = $this->scoreCandidate($b);
+            if ($scoreA === $scoreB) {
+                return strcmp($b, $a);
+            }
+            return $scoreB <=> $scoreA;
+        });
+
+        return $links;
+    }
+
+    private function looksLikePdfUrl(string $url): bool
+    {
+        return (bool) preg_match('/\.pdf(?:$|[?#])/i', $url);
+    }
+
+    private function absolutizeUrl(string $href, string $baseUrl): string
+    {
+        $href = trim($href);
+        if ($href === '') {
+            return '';
+        }
+        if (preg_match('#^[a-zA-Z][a-zA-Z0-9+\-.]*://#', $href)) {
+            return $href;
+        }
+
+        $baseParts = parse_url($baseUrl);
+        if (!is_array($baseParts) || empty($baseParts['scheme']) || empty($baseParts['host'])) {
+            return $href;
+        }
+
+        $fragment = '';
+        if (str_contains($href, '#')) {
+            [$href, $fragment] = explode('#', $href, 2);
+            $fragment = '#' . $fragment;
+        }
+
+        $query = '';
+        if (str_contains($href, '?')) {
+            [$pathPart, $query] = explode('?', $href, 2);
+            $href = $pathPart;
+            $query = '?' . $query;
+        }
+
+        $path = $href;
+        if ($path === '' || $path[0] === '/') {
+            $normalized = $this->normalizePath($path === '' ? '/' : $path);
+        } else {
+            $basePath = $baseParts['path'] ?? '/';
+            $baseDir = preg_replace('#/[^/]*$#', '/', $basePath) ?? '/';
+            $normalized = $this->normalizePath($baseDir . $path);
+        }
+
+        $port = isset($baseParts['port']) ? ':' . $baseParts['port'] : '';
+
+        return $baseParts['scheme'] . '://' . $baseParts['host'] . $port . $normalized . $query . $fragment;
+    }
+
+    private function normalizePath(string $path): string
+    {
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                array_pop($segments);
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        return '/' . implode('/', $segments);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function extractPdfUrlsFromString(string $text): array
+    {
+        $found = [];
+        if (preg_match_all("/https?:\/\/[^\"'\\s>]+\.pdf(?:\?[^\"'\\s<]*)?/i", $text, $matches)) {
+            foreach ($matches[0] as $url) {
+                $found[] = $url;
+            }
+        }
+        if (preg_match_all("/([\\w\\-\\/.]+\\.pdf(?:\\?[^\"'\\s<]*)?)/i", $text, $matches)) {
+            foreach ($matches[1] as $url) {
+                if (!preg_match('#^[a-zA-Z][a-zA-Z0-9+\-.]*://#', $url)) {
+                    $found[] = $url;
+                }
+            }
+        }
+        return $found;
+    }
+
+    private function scoreCandidate(string $url): int
+    {
+        if (preg_match('/(20\d{2})[-_\/]?(\d{2})[-_\/]?(\d{2})/', $url, $m)) {
+            return (int) ($m[1] . $m[2] . $m[3]);
+        }
+        if (preg_match('/(\d{2})[-_\/]?(\d{2})[-_\/]?(20\d{2})/', $url, $m)) {
+            return (int) ($m[3] . $m[2] . $m[1]);
+        }
+        return 0;
     }
 
     private function download(string $url): ?string
@@ -164,7 +406,7 @@ class PdfBulletin implements SourceInterface
             'type' => $this->inferType($current['reason']),
             'reason' => $current['reason'],
             'source' => 'pdf',
-            'url' => $this->url,
+            'url' => $this->resolvedUrl !== '' ? $this->resolvedUrl : $this->url,
             'confidence' => 0.75,
         ];
     }

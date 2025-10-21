@@ -17,7 +17,11 @@
     "pdf": {
       "enabled": true,
       "url": "",
-      "note": "Latest outage bulletin PDF"
+      "discover": [
+        "https://www.lesco.gov.pk/LoadSheddingShutdownSchedule",
+        "https://www.lesco.gov.pk/LoadManagement"
+      ],
+      "note": "Automatically discovers the latest bulletin when URL is empty"
     },
     "manual": {
       "enabled": true

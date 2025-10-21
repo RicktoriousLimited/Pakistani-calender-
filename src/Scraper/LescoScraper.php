@@ -124,11 +124,20 @@ class LescoScraper
         }
 
         $url = (string)($cfg['url'] ?? '');
+        $fallbacks = [];
+        if (!empty($cfg['discover'])) {
+            $list = is_array($cfg['discover']) ? $cfg['discover'] : [$cfg['discover']];
+            foreach ($list as $candidate) {
+                if (is_string($candidate) && trim($candidate) !== '') {
+                    $fallbacks[] = trim($candidate);
+                }
+            }
+        }
         return match ($name) {
             'official' => new Official($url),
             'facebook' => new FacebookPR($url),
             'ccms' => new CCMS($url),
-            'pdf' => new PdfBulletin($url),
+            'pdf' => new PdfBulletin($url, null, $fallbacks),
             default => null,
         };
     }
