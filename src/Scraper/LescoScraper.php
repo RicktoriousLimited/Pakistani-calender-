@@ -134,7 +134,7 @@ class LescoScraper
             }
         }
         return match ($name) {
-            'official' => new Official($url),
+            'official' => new Official($url, null, $fallbacks),
             'facebook' => new FacebookPR($url),
             'ccms' => new CCMS($url),
             'pdf' => new PdfBulletin($url, null, $fallbacks),
