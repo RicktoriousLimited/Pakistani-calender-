@@ -1,0 +1,6 @@
+
+# Minimal and safe for shared hosting
+Options -Indexes
+RewriteEngine On
+# Block PHP execution under storage
+RewriteRule ^storage/.*\.(php|phar)$ - [F,L]
