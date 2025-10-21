@@ -10,7 +10,7 @@
       "type": "maintenance",
       "reason": "Conductor stringing",
       "source": "official",
-      "url": "https://www.lesco.gov.pk/LoadSheddingShutdownSchedule",
+      "url": "https://www.lesco.gov.pk/shutdownschedule",
       "confidence": 0.7
     },
     {

@@ -107,6 +107,9 @@ class Official implements SourceInterface
     private function defaultDiscoveryPages(): array
     {
         return [
+            'https://www.lesco.gov.pk/shutdownschedule',
+            'https://www.lesco.gov.pk/TBR',
+            'https://www.lesco.gov.pk/tbr',
             'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule',
             'https://www.lesco.gov.pk/LoadManagement',
             'https://www.lesco.gov.pk/~/LoadManagement',
