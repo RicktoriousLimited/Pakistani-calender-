@@ -2,6 +2,8 @@
   let chart = null;
   let loaded = false;
   let loading = false;
+  let resizeObserver = null;
+  let resizeHandlerAttached = false;
 
   function formatDate(iso, options = {}) {
     if (!iso) {
@@ -32,6 +34,14 @@
     }
     const rounded = Math.round(val * 10) / 10;
     return `${rounded.toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 })} h`;
+  }
+
+  function reasonMarkup(value) {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (text === '') {
+      return '';
+    }
+    return `<div class="text-muted fst-italic">${text}</div>`;
   }
 
   function badgeClass(type) {
@@ -89,6 +99,9 @@
       const end = item.end ? formatDate(item.end) : '—';
       const division = item.division ? `<span class="text-muted">${item.division}</span>` : '';
       const feeder = item.feeder ? `<div class="text-muted">Feeder: ${item.feeder}</div>` : '';
+      const duration = (typeof item.hours === 'number' && Number.isFinite(item.hours) && item.hours > 0)
+        ? formatHours(item.hours)
+        : '—';
       return `
         <div class="insight-upcoming">
           <div class="d-flex justify-content-between align-items-start">
@@ -99,9 +112,9 @@
             <span class="badge bg-${badge}">${(item.type || 'scheduled').toUpperCase()}</span>
           </div>
           <div class="small text-muted">${start} → ${end}</div>
-          <div class="small">Duration: ${formatHours(item.hours ?? 0)}</div>
+          <div class="small">Duration: ${duration}</div>
           ${feeder}
-          ${item.reason ? `<div class="text-muted fst-italic">${item.reason}</div>` : ''}
+          ${reasonMarkup(item.reason)}
         </div>
       `;
     }).join('');
@@ -151,6 +164,9 @@
     }
     container.innerHTML = entries.map(item => {
       const badge = badgeClass(item.type);
+      const duration = (typeof item.hours === 'number' && Number.isFinite(item.hours) && item.hours > 0)
+        ? formatHours(item.hours)
+        : '—';
       return `
         <div class="insight-upcoming">
           <div class="d-flex justify-content-between align-items-start">
@@ -161,8 +177,8 @@
             <span class="badge bg-${badge}">${(item.type || 'scheduled').toUpperCase()}</span>
           </div>
           <div class="small text-muted">${formatDate(item.start)} → ${formatDate(item.end)}</div>
-          <div class="small">Duration: ${formatHours(item.hours ?? 0)}</div>
-          ${item.reason ? `<div class="text-muted fst-italic">${item.reason}</div>` : ''}
+          <div class="small">Duration: ${duration}</div>
+          ${reasonMarkup(item.reason)}
         </div>
       `;
     }).join('');
@@ -172,11 +188,7 @@
     if (!canvas) {
       return;
     }
-    const parent = canvas.parentElement;
-    if (parent instanceof HTMLElement) {
-      parent.style.removeProperty('height');
-      parent.style.removeProperty('max-height');
-    }
+    canvas.removeAttribute('height');
     canvas.style.removeProperty('height');
     canvas.style.removeProperty('max-height');
   }
@@ -195,17 +207,45 @@
     if (!canvas) {
       return;
     }
-    const parent = canvas.parentElement;
-    if (parent instanceof HTMLElement) {
-      if (!parent.style.position) {
-        parent.style.position = 'relative';
-      }
-      parent.style.height = `${height}px`;
-      parent.style.maxHeight = `${height}px`;
-    }
     canvas.height = height;
     canvas.style.height = `${height}px`;
     canvas.style.maxHeight = `${height}px`;
+  }
+
+  function adjustChartHeight(canvas) {
+    if (!canvas || !chart) {
+      return;
+    }
+    const target = desiredChartHeight(canvas);
+    applyChartSizing(canvas, target);
+    if (typeof chart.resize === 'function') {
+      chart.resize();
+    }
+  }
+
+  function watchChartContainer(canvas) {
+    if (!canvas) {
+      return;
+    }
+    if (typeof ResizeObserver !== 'undefined') {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      const parent = canvas.parentElement;
+      if (parent instanceof HTMLElement) {
+        resizeObserver = new ResizeObserver(function () {
+          adjustChartHeight(canvas);
+        });
+        resizeObserver.observe(parent);
+      }
+      return;
+    }
+    if (!resizeHandlerAttached) {
+      resizeHandlerAttached = true;
+      window.addEventListener('resize', function () {
+        adjustChartHeight(canvas);
+      });
+    }
   }
 
   function renderChart(daily) {
@@ -214,6 +254,10 @@
     if (chart) {
       chart.destroy();
       chart = null;
+    }
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
     }
     resetChartSizing(canvas);
     const ctx = canvas.getContext('2d');
@@ -290,6 +334,8 @@
       }
     });
     applyChartSizing(canvas, targetHeight);
+    watchChartContainer(canvas);
+    adjustChartHeight(canvas);
   }
 
   function renderAll(data) {

@@ -20,15 +20,15 @@ class Merge
         }
 
         return [
-            'utility' => $it['utility'] ?? 'LESCO',
+            'utility' => trim((string)($it['utility'] ?? 'LESCO')) ?: 'LESCO',
             'area' => trim((string)($it['area'] ?? '')),
             'feeder' => trim((string)($it['feeder'] ?? '')),
             'start' => $start,
             'end' => $end,
-            'type' => $it['type'] ?? 'scheduled',
-            'reason' => $it['reason'] ?? '',
-            'source' => $it['source'] ?? '',
-            'url' => $it['url'] ?? '',
+            'type' => trim((string)($it['type'] ?? '')) ?: 'scheduled',
+            'reason' => trim((string)($it['reason'] ?? '')),
+            'source' => trim((string)($it['source'] ?? '')),
+            'url' => trim((string)($it['url'] ?? '')),
             'confidence' => isset($it['confidence']) ? (float) $it['confidence'] : 0.7,
         ];
     }
@@ -54,26 +54,55 @@ class Merge
      */
     public static function merge(array $arrays): array
     {
-        $all = [];
+        $groups = [];
         foreach ($arrays as $arr) {
             foreach ($arr as $x) {
-                $all[] = self::normalize($x);
+                $normalized = self::normalize($x);
+                $key = strtolower($normalized['feeder'] ?? '') . '|' . ($normalized['start'] ?? '') . '|' . ($normalized['end'] ?? '');
+                $groups[$key][] = $normalized;
             }
         }
 
-        $map = [];
-        foreach ($all as $it) {
-            $key = strtolower($it['feeder'] ?? '') . '|' . ($it['start'] ?? '') . '|' . ($it['end'] ?? '');
-            if (!isset($map[$key]) || $it['confidence'] > $map[$key]['confidence']) {
-                $map[$key] = $it;
+        $result = [];
+        foreach ($groups as $items) {
+            if (empty($items)) {
+                continue;
             }
+            usort($items, static fn ($a, $b): int => $b['confidence'] <=> $a['confidence']);
+            $primary = $items[0];
+            $fields = ['area', 'feeder', 'start', 'end', 'type', 'reason', 'source', 'url'];
+            foreach ($fields as $field) {
+                if (self::isEmptyValue($primary[$field] ?? null)) {
+                    foreach ($items as $candidate) {
+                        if (!self::isEmptyValue($candidate[$field] ?? null)) {
+                            $primary[$field] = $candidate[$field];
+                            break;
+                        }
+                    }
+                }
+            }
+            $primary['sources'] = array_values(array_unique(array_filter(array_map(
+                static fn ($candidate) => $candidate['source'] ?? '',
+                $items
+            ), static fn ($value) => trim((string) $value) !== '')));
+            $result[] = $primary;
         }
 
-        $arr = array_values($map);
-        usort($arr, static function ($x, $y): int {
+        usort($result, static function ($x, $y): int {
             return strcmp($x['start'] ?? '', $y['start'] ?? '');
         });
 
-        return $arr;
+        return $result;
+    }
+
+    private static function isEmptyValue($value): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+        if (is_string($value)) {
+            return trim($value) === '';
+        }
+        return false;
     }
 }

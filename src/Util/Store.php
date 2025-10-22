@@ -260,7 +260,34 @@ class Store
                 }
             }
         }
+        $item['durationHours'] = $this->calculateDurationHours($item['start'] ?? null, $item['end'] ?? null);
         return $item;
+    }
+
+    private function calculateDurationHours(?string $start, ?string $end): ?float
+    {
+        if ($start === null || trim($start) === '') {
+            return null;
+        }
+        try {
+            $startDt = new \DateTimeImmutable($start);
+        } catch (\Exception $e) {
+            return null;
+        }
+        if ($end === null || trim($end) === '') {
+            return null;
+        }
+        try {
+            $endDt = new \DateTimeImmutable($end);
+        } catch (\Exception $e) {
+            return null;
+        }
+        $seconds = $endDt->getTimestamp() - $startDt->getTimestamp();
+        if ($seconds <= 0) {
+            return null;
+        }
+        $hours = round($seconds / 3600, 2);
+        return $hours > 0 ? $hours : null;
     }
 
     public function filterItems(array $items, array $filters): array
