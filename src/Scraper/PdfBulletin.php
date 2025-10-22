@@ -9,6 +9,9 @@ use SHUTDOWN\Util\PdfTextExtractor;
  */
 class PdfBulletin implements SourceInterface
 {
+    private const MAX_DISCOVERY_DEPTH = 2;
+    private const MAX_FOLLOW_LINKS_PER_PAGE = 12;
+
     private string $url;
 
     /** @var callable|null */
@@ -102,6 +105,11 @@ class PdfBulletin implements SourceInterface
             $links = $this->extractPdfLinks($html, $candidate);
             if (!empty($links)) {
                 return $links[0];
+            }
+
+            $nested = $this->followLinksForPdf($loader, $html, $candidate, $visited, self::MAX_DISCOVERY_DEPTH);
+            if ($nested !== null) {
+                return $nested;
             }
         }
 
@@ -205,6 +213,124 @@ class PdfBulletin implements SourceInterface
         });
 
         return $links;
+    }
+
+    private function followLinksForPdf(callable $loader, string $html, string $baseUrl, array &$visited, int $depth): ?string
+    {
+        if ($depth <= 0) {
+            return null;
+        }
+
+        $followLinks = $this->extractFollowableLinks($html, $baseUrl);
+        if (empty($followLinks)) {
+            return null;
+        }
+
+        foreach ($followLinks as $link) {
+            if (isset($visited[$link])) {
+                continue;
+            }
+            $visited[$link] = true;
+
+            if ($this->looksLikePdfUrl($link)) {
+                return $link;
+            }
+
+            $body = $loader($link);
+            if (!is_string($body) || trim($body) === '') {
+                continue;
+            }
+
+            if (strncmp($body, '%PDF', 4) === 0) {
+                return $link;
+            }
+
+            $pdfLinks = $this->extractPdfLinks($body, $link);
+            if (!empty($pdfLinks)) {
+                return $pdfLinks[0];
+            }
+
+            $nested = $this->followLinksForPdf($loader, $body, $link, $visited, $depth - 1);
+            if ($nested !== null) {
+                return $nested;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function extractFollowableLinks(string $html, string $baseUrl): array
+    {
+        $links = [];
+        $previousLibxml = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        if (@$dom->loadHTML($html) !== false) {
+            $xpath = new \DOMXPath($dom);
+            $nodes = $xpath->query('//a[@href]');
+            if ($nodes) {
+                foreach ($nodes as $node) {
+                    if (!$node instanceof \DOMElement) {
+                        continue;
+                    }
+                    $href = trim($node->getAttribute('href'));
+                    if ($href === '' || $href[0] === '#') {
+                        continue;
+                    }
+                    if (preg_match('/^(?:javascript|mailto|tel):/i', $href)) {
+                        continue;
+                    }
+                    $absolute = $this->absolutizeUrl($href, $baseUrl);
+                    if ($absolute === '') {
+                        continue;
+                    }
+                    if (!$this->shouldFollowLink($absolute, $baseUrl)) {
+                        continue;
+                    }
+                    $links[] = $absolute;
+                }
+            }
+        }
+        if ($previousLibxml !== null) {
+            libxml_use_internal_errors($previousLibxml);
+        }
+
+        if (empty($links)) {
+            return [];
+        }
+
+        $unique = array_values(array_unique($links));
+
+        if (count($unique) > self::MAX_FOLLOW_LINKS_PER_PAGE) {
+            $unique = array_slice($unique, 0, self::MAX_FOLLOW_LINKS_PER_PAGE);
+        }
+
+        return $unique;
+    }
+
+    private function shouldFollowLink(string $candidate, string $baseUrl): bool
+    {
+        if ($this->looksLikePdfUrl($candidate)) {
+            return true;
+        }
+
+        $candidateParts = parse_url($candidate);
+        if (!is_array($candidateParts) || empty($candidateParts['scheme'])) {
+            return false;
+        }
+
+        $baseParts = parse_url($baseUrl);
+        if (!is_array($baseParts) || empty($baseParts['host'])) {
+            return true;
+        }
+
+        if (empty($candidateParts['host'])) {
+            return true;
+        }
+
+        return strtolower((string) $candidateParts['host']) === strtolower((string) $baseParts['host']);
     }
 
     private function looksLikePdfUrl(string $url): bool
