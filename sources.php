@@ -45,19 +45,43 @@ $timezone = $cfg['timezone'] ?? 'Asia/Karachi';
 </nav>
 <header class="page-hero">
   <div class="container">
-    <div class="row align-items-center g-4">
-      <div class="col-lg-8">
+    <div class="page-hero-layout">
+      <div class="page-hero-content">
         <span class="page-hero-eyebrow"><i class="bi bi-diagram-3"></i> Data supply chain</span>
-        <h1 class="display-5 page-hero-title">Source catalogue</h1>
+        <h1 class="page-hero-title display-5">Source catalogue</h1>
         <p class="page-hero-lead">Transparency into every feed used to assemble the Shutdown Lookup dataset. Disabled sources remain listed for operational awareness.</p>
-        <ul class="page-hero-meta">
-          <li><i class="bi bi-collection"></i><span>Total sources: <?php echo $sourceCount; ?></span></li>
-          <li><i class="bi bi-geo"></i><span>Default timezone: <?php echo htmlspecialchars($timezone); ?></span></li>
-          <li><i class="bi bi-shield-check"></i><span>Managed via Admin console</span></li>
-        </ul>
+        <div class="page-hero-actions">
+          <a class="btn btn-brand" href="admin.php"><i class="bi bi-sliders me-2"></i>Manage configuration</a>
+          <a class="btn btn-outline-dark" href="index.php"><i class="bi bi-speedometer2 me-2"></i>Return to dashboard</a>
+        </div>
+        <div class="page-hero-metrics">
+          <div class="page-hero-metric">
+            <span class="pill-label">Total sources</span>
+            <span class="pill-value"><?php echo number_format($sourceCount); ?></span>
+            <span class="pill-foot">managed connections</span>
+          </div>
+          <div class="page-hero-metric">
+            <span class="pill-label">Timezone</span>
+            <span class="pill-value"><?php echo htmlspecialchars($timezone); ?></span>
+            <span class="pill-foot">default parsing zone</span>
+          </div>
+          <div class="page-hero-metric">
+            <span class="pill-label">Admin console</span>
+            <span class="pill-value">JSON &amp; CSV</span>
+            <span class="pill-foot">configuration surfaces</span>
+          </div>
+        </div>
       </div>
-      <div class="col-lg-4 text-lg-end">
-        <a class="btn btn-brand" href="admin.php"><i class="bi bi-sliders me-2"></i>Manage configuration</a>
+      <div class="page-hero-side">
+        <div class="page-hero-card">
+          <h2 class="h5 mb-2">Why it matters</h2>
+          <p>Every source is versioned and auditable. Keep contractors, planners and communications aligned on the same upstream truth.</p>
+          <ul>
+            <li><i class="bi bi-database-fill-check"></i>Track which feeds are live or paused at a glance.</li>
+            <li><i class="bi bi-shield-lock"></i>Ensure manual overrides honour the shared timezone.</li>
+            <li><i class="bi bi-arrow-repeat"></i>Back up schedules before making structural edits.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
