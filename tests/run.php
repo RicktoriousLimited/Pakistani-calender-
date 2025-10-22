@@ -469,6 +469,41 @@ test('PdfBulletin discovers embedded PDFs without anchor tags', function (): voi
     assertSame('E-1', $items[0]['feeder']);
 });
 
+test('PdfBulletin follows source hub links to locate PDFs', function (): void {
+    $requests = [];
+    $landingHtml = '<div class="hub"><a href="/sources/october-bulletin">Latest shutdown bulletin</a></div>';
+    $sourcesHtml = '<div class="downloads"><a href="/files/bulletins/2024-10-31.pdf">Download bulletin</a></div>';
+    $pdfText = implode("\n", [
+        'Area: Nested Town',
+        'Feeder: N-5',
+        'Start: 31-10-2024 08:00',
+        'End: 31-10-2024 12:00',
+        'Reason: Nested discovery',
+    ]);
+
+    $fetcher = function (string $url) use (&$requests, $landingHtml, $sourcesHtml) {
+        $requests[] = $url;
+        if (str_contains($url, '2024-10-31.pdf')) {
+            return '%PDF';
+        }
+        if (str_contains($url, '/sources/october-bulletin')) {
+            return $sourcesHtml;
+        }
+        return $landingHtml;
+    };
+
+    $extractor = fn (string $binary): string => $pdfText;
+
+    $bulletin = new PdfBulletin('https://example.test/discover', $fetcher, [], $extractor);
+    $items = $bulletin->fetch();
+
+    assertTrue(in_array('https://example.test/sources/october-bulletin', $requests, true));
+    assertTrue(in_array('https://example.test/files/bulletins/2024-10-31.pdf', $requests, true));
+    assertCount(1, $items);
+    assertSame('Nested Town', $items[0]['area']);
+    assertSame('N-5', $items[0]['feeder']);
+});
+
 test('Official scraper parses table', function (): void {
     $html = '<table><tr><td>Area 1</td><td>F-1</td><td>2025-04-01 08:00</td><td>2025-04-01 10:00</td><td>Maintenance</td></tr></table>';
     $official = new Official('https://example.test', fn (string $url) => $html);
