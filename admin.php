@@ -44,19 +44,43 @@ $sourceCount = count($cfg['sources'] ?? []);
 </nav>
 <header class="page-hero">
   <div class="container">
-    <div class="row align-items-center g-4">
-      <div class="col-lg-8">
+    <div class="page-hero-layout">
+      <div class="page-hero-content">
         <span class="page-hero-eyebrow"><i class="bi bi-speedometer2"></i> Operations control</span>
-        <h1 class="display-5 page-hero-title">Administration console</h1>
+        <h1 class="page-hero-title display-5">Administration console</h1>
         <p class="page-hero-lead">Run ingestion, manage config and capture manual overrides for the LESCO shutdown dataset. Every action is logged for traceability.</p>
-        <ul class="page-hero-meta">
-          <li><i class="bi bi-clock-history"></i><span>Last schedule update: <?php echo htmlspecialchars($meta['mtime'] ?? '—'); ?></span></li>
-          <li><i class="bi bi-hdd-network"></i><span>Storage size: <?php echo number_format((int)($meta['size'] ?? 0)); ?> bytes</span></li>
-          <li><i class="bi bi-diagram-3"></i><span>Sources configured: <?php echo $sourceCount; ?></span></li>
-        </ul>
+        <div class="page-hero-actions">
+          <a class="btn btn-brand" href="api.php?route=backup"><i class="bi bi-cloud-arrow-down me-2"></i>Backup storage</a>
+          <a class="btn btn-outline-dark" href="sources.php"><i class="bi bi-diagram-3 me-2"></i>Review sources</a>
+        </div>
+        <div class="page-hero-metrics">
+          <div class="page-hero-metric">
+            <span class="pill-label">Last update</span>
+            <span class="pill-value"><?php echo htmlspecialchars($meta['mtime'] ?? '—'); ?></span>
+            <span class="pill-foot">schedule timestamp</span>
+          </div>
+          <div class="page-hero-metric">
+            <span class="pill-label">Storage footprint</span>
+            <span class="pill-value"><?php echo number_format((int)($meta['size'] ?? 0)); ?></span>
+            <span class="pill-foot">bytes on disk</span>
+          </div>
+          <div class="page-hero-metric">
+            <span class="pill-label">Sources</span>
+            <span class="pill-value"><?php echo number_format($sourceCount); ?></span>
+            <span class="pill-foot">configured inputs</span>
+          </div>
+        </div>
       </div>
-      <div class="col-lg-4 text-lg-end">
-        <a class="btn btn-brand" href="api.php?route=backup"><i class="bi bi-cloud-arrow-down me-2"></i>Backup storage</a>
+      <div class="page-hero-side">
+        <div class="page-hero-card">
+          <h2 class="h5 mb-2">Operations checklist</h2>
+          <p class="mb-0">Keep this rhythm when preparing for the week ahead.</p>
+          <ul>
+            <li><i class="bi bi-arrow-repeat"></i>Run <strong>Fetch latest</strong> after source updates land.</li>
+            <li><i class="bi bi-journal-text"></i>Review the change log before sharing exports.</li>
+            <li><i class="bi bi-cloud-arrow-down"></i>Take a backup before major config edits.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
