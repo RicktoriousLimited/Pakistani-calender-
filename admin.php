@@ -8,123 +8,175 @@ use SHUTDOWN\Util\Store;
 $store = new Store(__DIR__ . DIRECTORY_SEPARATOR . 'storage');
 $meta = $store->meta();
 $cfg = $store->readConfig();
-?><!doctype html>
+$sourceCount = count($cfg['sources'] ?? []);
+?>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin — Shutdown</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="assets/styles.css">
 </head>
-<body class="bg-light">
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+<body class="d-flex flex-column min-vh-100">
+<nav class="navbar navbar-expand-lg navbar-dark site-navbar">
   <div class="container">
-    <a class="navbar-brand fw-bold" href="index.php">Shutdown</a>
-    <span class="navbar-text">Admin Console</span>
+    <a class="navbar-brand" href="index.php">
+      <span class="brand-mark">Shutdown</span>
+      <span class="brand-subtitle d-none d-md-inline">LESCO outage intelligence</span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#primaryNav" aria-controls="primaryNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="primaryNav">
+      <ul class="navbar-nav ms-auto align-items-lg-center">
+        <li class="nav-item"><a class="nav-link" href="index.php">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="sources.php">Sources</a></li>
+        <li class="nav-item"><a class="nav-link active" href="admin.php">Admin</a></li>
+      </ul>
+    </div>
   </div>
 </nav>
-<main class="container py-4">
-  <div class="row g-3">
-    <div class="col-lg-8">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-            <div>
-              <h5 class="card-title mb-1">Data Controls</h5>
-              <p class="text-muted small mb-0">Last schedule update: <strong><?php echo htmlspecialchars($meta['mtime'] ?? '—'); ?></strong></p>
-              <p class="text-muted small">Current file size: <?php echo number_format((int)($meta['size'] ?? 0)); ?> bytes</p>
-            </div>
-            <div class="text-end small">
-              <span class="badge bg-success"><?php echo count($cfg['sources'] ?? []); ?> sources configured</span>
-            </div>
-          </div>
-          <div class="d-flex flex-wrap gap-2">
-            <button id="btnIngest" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i>Fetch Latest</button>
-            <button id="btnProbe" class="btn btn-outline-secondary">Probe Sources</button>
-            <a class="btn btn-outline-dark" href="api.php?route=backup">Backup Storage (ZIP)</a>
-            <a class="btn btn-outline-dark" href="storage/schedule.json" target="_blank">Download JSON</a>
-          </div>
-          <pre id="ingestOut" class="mt-3 small bg-light border rounded p-3" style="min-height:120px;">Ready.</pre>
-        </div>
+<header class="page-hero">
+  <div class="container">
+    <div class="row align-items-center g-4">
+      <div class="col-lg-8">
+        <span class="page-hero-eyebrow"><i class="bi bi-speedometer2"></i> Operations control</span>
+        <h1 class="display-5 page-hero-title">Administration console</h1>
+        <p class="page-hero-lead">Run ingestion, manage config and capture manual overrides for the LESCO shutdown dataset. Every action is logged for traceability.</p>
+        <ul class="page-hero-meta">
+          <li><i class="bi bi-clock-history"></i><span>Last schedule update: <?php echo htmlspecialchars($meta['mtime'] ?? '—'); ?></span></li>
+          <li><i class="bi bi-hdd-network"></i><span>Storage size: <?php echo number_format((int)($meta['size'] ?? 0)); ?> bytes</span></li>
+          <li><i class="bi bi-diagram-3"></i><span>Sources configured: <?php echo $sourceCount; ?></span></li>
+        </ul>
       </div>
-
-      <div class="card shadow-sm border-0 mt-3">
-        <div class="card-body">
-          <h5 class="card-title">Config (Sources)</h5>
-          <p class="small text-muted">Edit source definitions and toggles. Invalid JSON is rejected with an error.</p>
-          <form id="cfgForm" class="row g-2">
-            <div class="col-12">
-              <label class="form-label">Config JSON</label>
-              <textarea id="cfg" class="form-control" rows="10"><?php echo htmlspecialchars(json_encode($cfg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)); ?></textarea>
-            </div>
-            <div class="col-12"><button class="btn btn-success">Save Config</button></div>
-          </form>
-          <pre id="cfgOut" class="small mt-2 bg-light border rounded p-2"></pre>
-        </div>
-      </div>
-
-      <div class="card shadow-sm border-0 mt-3">
-        <div class="card-body">
-          <h5 class="card-title">Add Single Entry</h5>
-          <p class="small text-muted">Perfect for ad-hoc shutdowns. Entries land in <code>manual.csv</code> and merge on the next fetch.</p>
-          <form id="addForm" class="row g-2">
-            <div class="col-md-4"><label class="form-label small">Area</label><input class="form-control" name="area" placeholder="Area" required></div>
-            <div class="col-md-4"><label class="form-label small">Feeder</label><input class="form-control" name="feeder" placeholder="Feeder" required></div>
-            <div class="col-md-4"><label class="form-label small">Type</label><input class="form-control" name="type" placeholder="Type" value="scheduled"></div>
-            <div class="col-md-6"><label class="form-label small">Start</label><input class="form-control" name="start" placeholder="YYYY-MM-DDTHH:MM:SS+05:00" required></div>
-            <div class="col-md-6"><label class="form-label small">End</label><input class="form-control" name="end" placeholder="YYYY-MM-DDTHH:MM:SS+05:00"></div>
-            <div class="col-12"><label class="form-label small">Reason</label><input class="form-control" name="reason" placeholder="Reason"></div>
-            <div class="col-12"><button class="btn btn-success">Append to Manual</button></div>
-          </form>
-          <pre id="addOut" class="small mt-2 bg-light border rounded p-2"></pre>
-        </div>
-      </div>
-
-      <div class="card shadow-sm border-0 mt-3">
-        <div class="card-body">
-          <h5 class="card-title">Manual CSV Upload</h5>
-          <p class="small text-muted mb-2">Upload a CSV to replace <code>manual.csv</code>. Expected headers: <code>utility,area,feeder,start,end,type,reason,source,url,confidence</code>.</p>
-          <form method="post" action="admin_upload.php" enctype="multipart/form-data" class="d-flex flex-wrap gap-2">
-            <input type="file" name="csv" accept=".csv" class="form-control flex-grow-1">
-            <button class="btn btn-dark">Upload</button>
-          </form>
-        </div>
+      <div class="col-lg-4 text-lg-end">
+        <a class="btn btn-brand" href="api.php?route=backup"><i class="bi bi-cloud-arrow-down me-2"></i>Backup storage</a>
       </div>
     </div>
+  </div>
+</header>
+<main class="page-main flex-grow-1">
+  <div class="container">
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="card data-card border-0 shadow-sm">
+          <div class="card-body p-4 p-lg-5">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+              <div>
+                <h2 class="h4 mb-1">Data controls</h2>
+                <p class="text-muted small mb-0">Use ingestion tools to refresh the working dataset or test upstream availability.</p>
+              </div>
+              <span class="badge bg-success-subtle text-success fw-semibold"><?php echo $sourceCount; ?> source<?php echo $sourceCount === 1 ? '' : 's'; ?> active</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button id="btnIngest" class="btn btn-primary"><i class="bi bi-arrow-repeat me-1"></i>Fetch latest</button>
+              <button id="btnProbe" class="btn btn-outline-secondary"><i class="bi bi-activity me-1"></i>Probe sources</button>
+              <a class="btn btn-outline-dark" href="storage/schedule.json" target="_blank" rel="noopener"><i class="bi bi-filetype-json me-1"></i>Download JSON</a>
+            </div>
+            <pre id="ingestOut" class="mt-4 small">Ready.</pre>
+          </div>
+        </div>
 
-    <div class="col-lg-4">
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <h5 class="card-title">History &amp; Changes</h5>
-          <div class="input-group input-group-sm mb-2">
-            <span class="input-group-text">Day</span>
-            <input id="histDay" type="date" class="form-control">
-            <button id="btnHistory" class="btn btn-outline-secondary">View</button>
+        <div class="card data-card border-0 shadow-sm mt-4">
+          <div class="card-body p-4 p-lg-5">
+            <h2 class="h5 mb-2">Config (sources)</h2>
+            <p class="small text-muted">Edit JSON configuration for automated sources. Invalid payloads are rejected with detailed error messaging.</p>
+            <form id="cfgForm" class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Config JSON</label>
+                <textarea id="cfg" class="form-control" rows="10"><?php echo htmlspecialchars(json_encode($cfg, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)); ?></textarea>
+              </div>
+              <div class="col-12"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Save config</button></div>
+            </form>
+            <pre id="cfgOut" class="small mt-3"></pre>
           </div>
-          <pre id="histOut" class="small bg-light border rounded p-2" style="max-height:220px;overflow:auto"></pre>
-          <div class="d-flex justify-content-between align-items-center mt-2">
-            <button id="btnChanges" class="btn btn-sm btn-outline-secondary">Show Change Log</button>
-            <span class="small text-muted">Latest 50 entries</span>
+        </div>
+
+        <div class="card data-card border-0 shadow-sm mt-4">
+          <div class="card-body p-4 p-lg-5">
+            <h2 class="h5 mb-2">Add single entry</h2>
+            <p class="small text-muted">Append a one-off shutdown. Entries are stored in <code>manual.csv</code> and merged on the next fetch cycle.</p>
+            <form id="addForm" class="row g-3">
+              <div class="col-md-4"><label class="form-label small">Area</label><input class="form-control" name="area" placeholder="Area" required></div>
+              <div class="col-md-4"><label class="form-label small">Feeder</label><input class="form-control" name="feeder" placeholder="Feeder" required></div>
+              <div class="col-md-4"><label class="form-label small">Type</label><input class="form-control" name="type" placeholder="Type" value="scheduled"></div>
+              <div class="col-md-6"><label class="form-label small">Start</label><input class="form-control" name="start" placeholder="YYYY-MM-DDTHH:MM:SS+05:00" required></div>
+              <div class="col-md-6"><label class="form-label small">End</label><input class="form-control" name="end" placeholder="YYYY-MM-DDTHH:MM:SS+05:00"></div>
+              <div class="col-12"><label class="form-label small">Reason</label><input class="form-control" name="reason" placeholder="Reason"></div>
+              <div class="col-12"><button class="btn btn-success"><i class="bi bi-plus-circle me-1"></i>Append to manual</button></div>
+            </form>
+            <pre id="addOut" class="small mt-3"></pre>
           </div>
-          <pre id="changesOut" class="small bg-light border rounded p-2 mt-2" style="max-height:220px;overflow:auto"></pre>
+        </div>
+
+        <div class="card data-card border-0 shadow-sm mt-4">
+          <div class="card-body p-4 p-lg-5">
+            <h2 class="h5 mb-2">Manual CSV upload</h2>
+            <p class="small text-muted mb-3">Upload a CSV to replace <code>manual.csv</code>. Expected headers: <code>utility,area,feeder,start,end,type,reason,source,url,confidence</code>.</p>
+            <form method="post" action="admin_upload.php" enctype="multipart/form-data" class="d-flex flex-wrap gap-2">
+              <input type="file" name="csv" accept=".csv" class="form-control flex-grow-1">
+              <button class="btn btn-dark"><i class="bi bi-upload me-1"></i>Upload</button>
+            </form>
+          </div>
         </div>
       </div>
 
-      <div class="card shadow-sm border-0 mt-3">
-        <div class="card-body">
-          <h5 class="card-title">Quick Stats</h5>
-          <ul class="list-unstyled small mb-0">
-            <li><span class="fw-semibold">Timezone:</span> <?php echo htmlspecialchars($cfg['timezone'] ?? 'Asia/Karachi'); ?></li>
-            <?php foreach (($cfg['sources'] ?? []) as $name => $info): ?>
-              <li><span class="fw-semibold text-capitalize"><?php echo htmlspecialchars($name); ?>:</span> <?php echo !empty($info['enabled']) ? '<span class="text-success">enabled</span>' : '<span class="text-muted">disabled</span>'; ?></li>
-            <?php endforeach; ?>
-          </ul>
+      <div class="col-lg-4">
+        <div class="card data-card border-0 shadow-sm">
+          <div class="card-body p-4 p-lg-5">
+            <h2 class="h5 mb-3">History &amp; change log</h2>
+            <div class="input-group input-group-sm mb-3">
+              <span class="input-group-text">Day</span>
+              <input id="histDay" type="date" class="form-control">
+              <button id="btnHistory" class="btn btn-outline-secondary">View</button>
+            </div>
+            <pre id="histOut" class="small" style="max-height:220px;overflow:auto"></pre>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <button id="btnChanges" class="btn btn-sm btn-outline-secondary"><i class="bi bi-journal-text me-1"></i>Show change log</button>
+              <span class="small text-muted">Latest 50 entries</span>
+            </div>
+            <pre id="changesOut" class="small mt-3" style="max-height:220px;overflow:auto"></pre>
+          </div>
+        </div>
+
+        <div class="card data-card border-0 shadow-sm mt-4">
+          <div class="card-body p-4 p-lg-5">
+            <h2 class="h5 mb-3">Quick stats</h2>
+            <ul class="list-unstyled small mb-0">
+              <li class="mb-2"><span class="fw-semibold">Timezone:</span> <?php echo htmlspecialchars($cfg['timezone'] ?? 'Asia/Karachi'); ?></li>
+              <?php foreach (($cfg['sources'] ?? []) as $name => $info): ?>
+                <li class="mb-1"><span class="fw-semibold text-capitalize"><?php echo htmlspecialchars($name); ?>:</span> <?php echo !empty($info['enabled']) ? '<span class="text-success">enabled</span>' : '<span class="text-muted">disabled</span>'; ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </main>
+<footer class="site-footer">
+  <div class="container small text-muted">
+    <div class="row gy-3 align-items-center">
+      <div class="col-lg-8">
+        <p class="mb-1">Admin tools power the data seen on Shutdown Lookup. Use responsibly and capture operator notes for auditing.</p>
+        <p class="mb-0">Manual edits merge with automated runs to maintain a single source of truth.</p>
+      </div>
+      <div class="col-lg-4">
+        <nav class="nav justify-content-lg-end">
+          <a class="nav-link px-0" href="index.php">Dashboard</a>
+          <a class="nav-link px-0" href="sources.php">Sources</a>
+          <a class="nav-link px-0" href="api.php?route=backup">Backup ZIP</a>
+        </nav>
+      </div>
+    </div>
+  </div>
+</footer>
 <script>const API_BASE='api.php';</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="assets/admin.js"></script>
