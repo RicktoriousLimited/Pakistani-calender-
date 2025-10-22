@@ -10,6 +10,25 @@ $cfg = $store->readConfig();
 $sources = $cfg['sources'] ?? [];
 $sourceCount = count($sources);
 $timezone = $cfg['timezone'] ?? 'Asia/Karachi';
+
+$enabledCount = 0;
+$disabledCount = 0;
+$discoveryEndpoints = 0;
+foreach ($sources as $info) {
+    $enabled = !empty($info['enabled']);
+    if ($enabled) {
+        $enabledCount++;
+    } else {
+        $disabledCount++;
+    }
+    if (!empty($info['discover']) && is_array($info['discover'])) {
+        foreach ($info['discover'] as $url) {
+            if (is_string($url) && trim($url) !== '') {
+                $discoveryEndpoints++;
+            }
+        }
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -61,14 +80,14 @@ $timezone = $cfg['timezone'] ?? 'Asia/Karachi';
             <span class="pill-foot">managed connections</span>
           </div>
           <div class="page-hero-metric">
-            <span class="pill-label">Timezone</span>
-            <span class="pill-value"><?php echo htmlspecialchars($timezone); ?></span>
-            <span class="pill-foot">default parsing zone</span>
+            <span class="pill-label">Active connections</span>
+            <span class="pill-value"><?php echo number_format($enabledCount); ?></span>
+            <span class="pill-foot">delivering data now</span>
           </div>
           <div class="page-hero-metric">
-            <span class="pill-label">Admin console</span>
-            <span class="pill-value">JSON &amp; CSV</span>
-            <span class="pill-foot">configuration surfaces</span>
+            <span class="pill-label">Discovery endpoints</span>
+            <span class="pill-value"><?php echo number_format($discoveryEndpoints); ?></span>
+            <span class="pill-foot">monitored entry points</span>
           </div>
         </div>
       </div>
@@ -78,7 +97,8 @@ $timezone = $cfg['timezone'] ?? 'Asia/Karachi';
           <p>Every source is versioned and auditable. Keep contractors, planners and communications aligned on the same upstream truth.</p>
           <ul>
             <li><i class="bi bi-database-fill-check"></i>Track which feeds are live or paused at a glance.</li>
-            <li><i class="bi bi-shield-lock"></i>Ensure manual overrides honour the shared timezone.</li>
+            <li><i class="bi bi-clock-history"></i>Default parsing zone: <strong><?php echo htmlspecialchars($timezone); ?></strong>.</li>
+            <li><i class="bi bi-robot"></i>Discovery monitors cover <?php echo number_format($discoveryEndpoints); ?> endpoints.</li>
             <li><i class="bi bi-arrow-repeat"></i>Back up schedules before making structural edits.</li>
           </ul>
         </div>
@@ -97,23 +117,103 @@ $timezone = $cfg['timezone'] ?? 'Asia/Karachi';
           </div>
           <span class="badge badge-pill align-self-start"><i class="bi bi-clock-history me-1"></i>Last refreshed from storage</span>
         </div>
+        <div class="source-toolbar">
+          <div class="input-group input-group-sm source-search">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="search" id="sourceSearch" class="form-control" placeholder="Filter by name, endpoint or note">
+          </div>
+          <div class="btn-group btn-group-sm source-filter-group" role="group" aria-label="Filter sources">
+            <button type="button" class="btn btn-outline-secondary active" data-filter="all">All</button>
+            <button type="button" class="btn btn-outline-secondary" data-filter="enabled">Enabled (<?php echo number_format($enabledCount); ?>)</button>
+            <button type="button" class="btn btn-outline-secondary" data-filter="disabled">Disabled (<?php echo number_format($disabledCount); ?>)</button>
+          </div>
+        </div>
+        <div class="source-stats">
+          <div class="source-stat">
+            <span class="source-stat-label">Active feeds</span>
+            <span class="source-stat-value"><?php echo number_format($enabledCount); ?></span>
+            <span class="source-stat-foot">Currently enabled connectors</span>
+          </div>
+          <div class="source-stat">
+            <span class="source-stat-label">Paused feeds</span>
+            <span class="source-stat-value"><?php echo number_format($disabledCount); ?></span>
+            <span class="source-stat-foot">Temporarily disabled inputs</span>
+          </div>
+          <div class="source-stat">
+            <span class="source-stat-label">Discovery watchpoints</span>
+            <span class="source-stat-value"><?php echo number_format($discoveryEndpoints); ?></span>
+            <span class="source-stat-foot">URLs monitored for schedule drops</span>
+          </div>
+        </div>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
-              <tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Endpoint</th><th scope="col" class="text-end">Notes</th></tr>
+              <tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Endpoint</th><th scope="col" class="text-center">Discovery / config</th><th scope="col" class="text-end">Notes</th></tr>
             </thead>
-            <tbody>
-            <?php foreach ($sources as $name => $info): $enabled = !empty($info['enabled']); ?>
-              <tr>
+            <tbody id="sourcesBody">
+            <?php foreach ($sources as $name => $info):
+                $enabled = !empty($info['enabled']);
+                $discoverRaw = !empty($info['discover']) && is_array($info['discover']) ? $info['discover'] : [];
+                $discoverList = [];
+                foreach ($discoverRaw as $url) {
+                    if (is_string($url) && trim($url) !== '') {
+                        $discoverList[] = trim($url);
+                    }
+                }
+                $discoverCount = count($discoverList);
+                $note = trim((string)($info['note'] ?? ''));
+                $sourceId = 'source-' . preg_replace('/[^a-z0-9]+/', '-', strtolower((string)$name));
+                $keywords = strtolower(
+                    (string)$name . ' ' .
+                    ($info['url'] ?? '') . ' ' .
+                    $note . ' ' .
+                    implode(' ', $discoverList)
+                );
+            ?>
+              <tr class="source-row" data-source="<?php echo htmlspecialchars($sourceId); ?>" data-enabled="<?php echo $enabled ? '1' : '0'; ?>" data-keywords="<?php echo htmlspecialchars($keywords, ENT_QUOTES); ?>">
                 <th scope="row" class="text-capitalize"><?php echo htmlspecialchars($name); ?></th>
                 <td><?php echo $enabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'; ?></td>
-                <td><?php echo !empty($info['url']) ? '<a href="' . htmlspecialchars($info['url']) . '" target="_blank" rel="noopener">' . htmlspecialchars($info['url']) . '</a>' : '<span class="text-muted">—</span>'; ?></td>
-                <td class="text-end text-muted small"><?php echo htmlspecialchars($info['note'] ?? ''); ?></td>
+                <td><?php echo !empty($info['url']) ? '<a href="' . htmlspecialchars((string)$info['url']) . '" target="_blank" rel="noopener">' . htmlspecialchars((string)$info['url']) . '</a>' : '<span class="text-muted">—</span>'; ?></td>
+                <td class="text-center">
+                  <button type="button" class="btn btn-sm btn-outline-primary source-detail-toggle" data-source="<?php echo htmlspecialchars($sourceId); ?>">
+                    <i class="bi bi-folder2-open me-1"></i>Details<?php echo $discoverCount ? ' (' . number_format($discoverCount) . ')' : ''; ?>
+                  </button>
+                </td>
+                <td class="text-end text-muted small"><?php echo htmlspecialchars($note); ?></td>
+              </tr>
+              <tr class="source-detail d-none" data-source="<?php echo htmlspecialchars($sourceId); ?>">
+                <td colspan="5">
+                  <div class="source-detail-card">
+                    <div class="source-detail-heading">
+                      <h3 class="h6 mb-0 text-capitalize"><?php echo htmlspecialchars($name); ?></h3>
+                      <span class="badge <?php echo $enabled ? 'bg-success' : 'bg-secondary'; ?>"><?php echo $enabled ? 'Enabled' : 'Disabled'; ?></span>
+                    </div>
+                    <?php if ($note !== ''): ?>
+                      <p class="small text-muted mb-3"><?php echo htmlspecialchars($note); ?></p>
+                    <?php endif; ?>
+                    <?php if ($discoverCount): ?>
+                      <div class="source-detail-section">
+                        <div class="source-detail-label">Discovery endpoints</div>
+                        <div class="source-discover-list">
+                          <?php foreach ($discoverList as $endpoint): ?>
+                            <a class="source-discover-chip" href="<?php echo htmlspecialchars($endpoint); ?>" target="_blank" rel="noopener">
+                              <i class="bi bi-link-45deg me-1"></i><?php echo htmlspecialchars($endpoint); ?>
+                            </a>
+                          <?php endforeach; ?>
+                        </div>
+                      </div>
+                    <?php endif; ?>
+                    <div class="source-detail-section">
+                      <div class="source-detail-label">Configuration snapshot</div>
+                      <pre class="small mb-0"><?php echo htmlspecialchars(json_encode($info, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), ENT_QUOTES); ?></pre>
+                    </div>
+                  </div>
+                </td>
               </tr>
             <?php endforeach; ?>
-            <?php if (!$sourceCount): ?>
-              <tr><td colspan="4" class="text-center text-muted py-4">No sources configured yet.</td></tr>
-            <?php endif; ?>
+              <tr id="sourcesEmpty" class="<?php echo $sourceCount ? 'd-none' : ''; ?>">
+                <td colspan="5" class="text-center text-muted py-4">No sources match the current filters.</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -129,6 +229,23 @@ $timezone = $cfg['timezone'] ?? 'Asia/Karachi';
           <li class="mb-2"><a href="https://www.facebook.com/PRLESCO/" target="_blank" rel="noopener">PR LESCO announcements</a> — urgent notices and manual updates.</li>
           <li><a href="https://www.openstreetmap.org" target="_blank" rel="noopener">OpenStreetMap contributors</a> — base cartography served via Leaflet.</li>
         </ul>
+        <div class="source-guidance">
+          <div class="source-guidance-card">
+            <div class="source-guidance-icon"><i class="bi bi-broadcast"></i></div>
+            <h3 class="h6 mb-1">Maintain coverage</h3>
+            <p class="small">Keep at least one official bulletin and one CCMS feed enabled to preserve redundancy across the workflow.</p>
+          </div>
+          <div class="source-guidance-card">
+            <div class="source-guidance-icon"><i class="bi bi-shield-lock"></i></div>
+            <h3 class="h6 mb-1">Validate before enabling</h3>
+            <p class="small">Run a probe from the admin console before reactivating paused sources to prevent stale or malformed payloads.</p>
+          </div>
+          <div class="source-guidance-card">
+            <div class="source-guidance-icon"><i class="bi bi-journal-text"></i></div>
+            <h3 class="h6 mb-1">Document overrides</h3>
+            <p class="small">Record manual edits and add operator notes so downstream teams can trace provenance during incidents.</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -151,5 +268,6 @@ $timezone = $cfg['timezone'] ?? 'Asia/Karachi';
   </div>
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/sources.js"></script>
 </body>
 </html>
