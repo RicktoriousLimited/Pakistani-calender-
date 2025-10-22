@@ -397,6 +397,41 @@ test('PdfBulletin discovers PDFs with spaces in the path', function (): void {
     assertSame('F-1', $items[0]['feeder']);
 });
 
+test('PdfBulletin discovers PDFs referenced via JavaScript download helpers', function (): void {
+    $requests = [];
+    $html = <<<HTML
+<button onclick="return DownloadFile('Notice_files/SDLS/LESCO Shutdown Schedule 09.07.2024.pdf');">Download</button>
+<script>
+    const latest = "Notice_files/SDLS/LESCO Shutdown Schedule 09.07.2024.pdf";
+</script>
+HTML;
+    $pdfText = implode("\n", [
+        'Area: Model Town',
+        'Feeder: F-9',
+        'Start: 09-07-2024 08:00',
+        'End: 09-07-2024 12:00',
+        'Reason: JavaScript link',
+    ]);
+
+    $fetcher = function (string $url) use (&$requests, $html) {
+        $requests[] = $url;
+        if (str_contains($url, '.pdf')) {
+            return '%PDF';
+        }
+        return $html;
+    };
+
+    $extractor = fn (string $binary): string => $pdfText;
+
+    $bulletin = new PdfBulletin('https://example.test/LoadSheddingShutdownSchedule', $fetcher, [], $extractor);
+    $items = $bulletin->fetch();
+
+    assertTrue(in_array('https://example.test/Notice_files/SDLS/LESCO%20Shutdown%20Schedule%2009.07.2024.pdf', $requests, true));
+    assertCount(1, $items);
+    assertSame('Model Town', $items[0]['area']);
+    assertSame('F-9', $items[0]['feeder']);
+});
+
 test('PdfBulletin discovers embedded PDFs without anchor tags', function (): void {
     $requests = [];
     $html = '<iframe src="/files/latest-bulletin.pdf"></iframe>' .

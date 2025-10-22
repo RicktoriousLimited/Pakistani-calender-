@@ -393,28 +393,66 @@ class PdfBulletin implements SourceInterface
     private function extractPdfUrlsFromString(string $text): array
     {
         $found = [];
-        if (preg_match_all("/https?:\/\/[^\"'\\s>]+\.pdf(?:\?[^\"'\\s<]*)?/i", $text, $matches)) {
+        if (preg_match_all('/https?:\/\/[^\s\"\'<>]+\.pdf(?:\?[^\s\"\'<>]*)?/i', $text, $matches)) {
             foreach ($matches[0] as $url) {
-                $found[] = $url;
-            }
-        }
-        if (preg_match_all("/([\\w\\-\\/.]+\\.pdf(?:\\?[^\"'\\s<]*)?)/i", $text, $matches)) {
-            foreach ($matches[1] as $url) {
-                if (!preg_match('#^[a-zA-Z][a-zA-Z0-9+\-.]*://#', $url)) {
-                    $found[] = $url;
+                $candidate = $this->cleanExtractedUrl((string) $url);
+                if ($candidate !== '' && $this->looksLikePdfUrl($candidate)) {
+                    $found[] = $candidate;
                 }
             }
         }
+        $patterns = [
+            ['/["\']\s*([^"\']+\.pdf(?:\?[^"\']*)?)\s*["\']/i', 1],
+            ['/(?:^|["\'\s(>])((?:https?:\/\/|\/|\.{1,2}\/|~\/)?[^"\'<>]*?\.pdf(?:\?[^"\'<>\s]*)?)/i', 1],
+        ];
+        foreach ($patterns as [$pattern, $group]) {
+            if (!preg_match_all($pattern, $text, $matches)) {
+                continue;
+            }
+            foreach ($matches[$group] as $raw) {
+                $candidate = $this->cleanExtractedUrl((string) $raw);
+                if ($candidate === '') {
+                    continue;
+                }
+                if (!$this->looksLikePdfUrl($candidate)) {
+                    continue;
+                }
+                $found[] = $candidate;
+            }
+        }
+
+        $found = array_values(array_unique($found));
+
         return $found;
+    }
+
+    private function cleanExtractedUrl(string $candidate): string
+    {
+        $candidate = trim($candidate);
+        if ($candidate === '') {
+            return '';
+        }
+
+        $candidate = trim($candidate, "\"'`");
+        $candidate = trim($candidate);
+        $candidate = ltrim($candidate, "\"'(<[{ ");
+        $candidate = rtrim($candidate, "\"')>]}.;:, ");
+
+        return trim($candidate);
     }
 
     private function scoreCandidate(string $url): int
     {
-        if (preg_match('/(20\d{2})[-_\/]?(\d{2})[-_\/]?(\d{2})/', $url, $m)) {
-            return (int) ($m[1] . $m[2] . $m[3]);
+        if (preg_match('/(20\d{2})[-_\/. ]?(\d{1,2})[-_\/. ]?(\d{1,2})/', $url, $m)) {
+            return (int) sprintf('%04d%02d%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
         }
-        if (preg_match('/(\d{2})[-_\/]?(\d{2})[-_\/]?(20\d{2})/', $url, $m)) {
-            return (int) ($m[3] . $m[2] . $m[1]);
+        if (preg_match('/(\d{1,2})[-_\/. ]?(\d{1,2})[-_\/. ]?(20\d{2})/', $url, $m)) {
+            return (int) sprintf('%04d%02d%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+        }
+        if (preg_match('/(\d{1,2})[-_\/. ]?(\d{1,2})[-_\/. ]?(\d{2})/', $url, $m)) {
+            $year = (int) $m[3];
+            $year += $year >= 70 ? 1900 : 2000;
+            return (int) sprintf('%04d%02d%02d', $year, (int) $m[2], (int) $m[1]);
         }
         return 0;
     }
