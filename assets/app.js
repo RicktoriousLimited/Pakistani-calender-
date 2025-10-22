@@ -19,7 +19,34 @@ async function fetchDivisions(){
     return [];
   }
 }
-function fmt(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}); }
+function fmt(iso){ if(!iso) return '—'; const d=new Date(iso); if(Number.isNaN(d.getTime())) return '—'; return d.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}); }
+function textOrDash(value){ if(value===undefined||value===null) return '—'; const str=String(value).trim(); return str!==''?str:'—'; }
+function deriveDurationHours(it){
+  if (typeof it.durationHours === 'number' && Number.isFinite(it.durationHours) && it.durationHours > 0) {
+    return Math.round(it.durationHours * 10) / 10;
+  }
+  if (!it.start || !it.end) {
+    return null;
+  }
+  const start = new Date(it.start);
+  const end = new Date(it.end);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+  const diff = (end.getTime() - start.getTime()) / 3600000;
+  if (!Number.isFinite(diff) || diff <= 0) {
+    return null;
+  }
+  return Math.round(diff * 10) / 10;
+}
+function formatDuration(it){
+  const hours = deriveDurationHours(it);
+  if (hours === null) {
+    return '—';
+  }
+  const opts = { maximumFractionDigits: hours >= 10 ? 0 : 1, minimumFractionDigits: 0 };
+  return `${hours.toLocaleString(undefined, opts)} h`;
+}
 function groupBy(items, keyFn){
   const m = new Map();
   for (const it of items){ const k=keyFn(it); if(!m.has(k)) m.set(k, []); m.get(k).push(it); }
@@ -27,17 +54,18 @@ function groupBy(items, keyFn){
 }
 function renderTable(items){
   return `<table class="table table-sm align-middle mb-0">
-    <thead><tr><th>Area</th><th>Division</th><th>Feeder</th><th>Start</th><th>End</th><th>Type</th><th>Reason</th></tr></thead>
+    <thead><tr><th>Area</th><th>Division</th><th>Feeder</th><th>Start</th><th>End</th><th>Duration</th><th>Type</th><th>Reason</th></tr></thead>
     <tbody>
       ${items.map(it=>`
         <tr>
-          <td>${it.area||'—'}</td>
-          <td class="text-muted">${it.division||'—'}</td>
-          <td class="text-muted">${it.feeder||'—'}</td>
+          <td>${textOrDash(it.area)}</td>
+          <td class="text-muted">${textOrDash(it.division)}</td>
+          <td class="text-muted">${textOrDash(it.feeder)}</td>
           <td>${fmt(it.start)}</td>
           <td>${fmt(it.end)}</td>
+          <td>${formatDuration(it)}</td>
           <td><span class="badge bg-${badge(it.type)}">${(it.type||'scheduled').toUpperCase()}</span></td>
-          <td class="text-muted">${it.reason||''}</td>
+          <td class="text-muted">${textOrDash(it.reason)}</td>
         </tr>`).join('')}
     </tbody></table>`;
 }

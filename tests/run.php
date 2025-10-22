@@ -126,6 +126,34 @@ test('Merge normalises and deduplicates', function (): void {
     assertCount(1, $merged);
     assertSame('new', $merged[0]['reason']);
     assertSame(0.9, $merged[0]['confidence']);
+
+    $mergedFallback = Merge::merge([
+        [
+            [
+                'feeder' => 'F',
+                'area' => '',
+                'start' => '2025-01-02T08:00:00+05:00',
+                'end' => '2025-01-02T10:00:00+05:00',
+                'confidence' => 0.95,
+                'reason' => '',
+                'source' => 'manual',
+            ],
+            [
+                'feeder' => 'F',
+                'area' => 'Garden Town',
+                'start' => '2025-01-02T08:00:00+05:00',
+                'end' => '2025-01-02T10:00:00+05:00',
+                'confidence' => 0.6,
+                'reason' => 'Pole repair',
+                'source' => 'official',
+            ],
+        ],
+    ]);
+    assertCount(1, $mergedFallback);
+    assertSame('Garden Town', $mergedFallback[0]['area']);
+    assertSame('Pole repair', $mergedFallback[0]['reason']);
+    assertTrue(in_array('manual', $mergedFallback[0]['sources'], true));
+    assertTrue(in_array('official', $mergedFallback[0]['sources'], true));
 });
 
 test('ManualCsv parses rows', function (): void {
@@ -159,6 +187,7 @@ test('Store append/read/manual/filter/history', function (): void {
         $store->writeSchedule([$entry]);
         $schedule = $store->readSchedule();
         assertSame('Lahore Central', $schedule['items'][0]['division']);
+        assertEquals(2.0, $schedule['items'][0]['durationHours']);
         $filtered = $store->filterItems($schedule['items'], ['division' => 'lahore central']);
         assertCount(1, $filtered);
         $filteredNone = $store->filterItems($schedule['items'], ['division' => 'lahore south']);
@@ -650,6 +679,8 @@ test('LescoScraper merges sources and reports', function (): void {
                     'end' => '2025-06-01T12:00:00+05:00',
                     'type' => 'scheduled',
                     'confidence' => 0.6,
+                    'reason' => 'Conductor maintenance',
+                    'source' => 'official',
                 ],
             ]),
         ];
@@ -666,6 +697,10 @@ test('LescoScraper merges sources and reports', function (): void {
         assertCount(1, $items);
         assertSame('maintenance', $items[0]['type']);
         assertSame('Lahore Central', $items[0]['division']);
+        assertSame('Conductor maintenance', $items[0]['reason']);
+        assertTrue(in_array('official', $items[0]['sources'], true));
+        assertTrue(in_array('manual', $items[0]['sources'], true));
+        assertEquals(4.0, $items[0]['durationHours']);
         $report = $scraper->lastReport();
         assertTrue(isset($report['sources']['official']));
         assertTrue(isset($report['sources']['manual']));

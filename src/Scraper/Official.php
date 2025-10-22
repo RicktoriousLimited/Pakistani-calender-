@@ -113,6 +113,8 @@ class Official implements SourceInterface
             'https://www.lesco.gov.pk/LoadSheddingShutdownSchedule',
             'https://www.lesco.gov.pk/LoadManagement',
             'https://www.lesco.gov.pk/~/LoadManagement',
+            'https://www.lesco.gov.pk/Notice_files/SDLS/',
+            'https://www.lesco.gov.pk/Notice_files/ShutdownSchedule/',
             'http://www.lesco.gov.pk/Modules/ShutdownSchedule/Select_Customer.asp',
         ];
     }
