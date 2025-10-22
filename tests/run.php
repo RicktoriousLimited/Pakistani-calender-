@@ -9,6 +9,11 @@ if (function_exists('date_default_timezone_set')) {
 require __DIR__ . '/../bootstrap.php';
 require __DIR__ . '/support/FakeSource.php';
 
+use SHUTDOWN\App\Application;
+use SHUTDOWN\App\Http\HttpException;
+use SHUTDOWN\App\Http\Request;
+use SHUTDOWN\App\Http\Response;
+use SHUTDOWN\App\Http\Router;
 use SHUTDOWN\Parser\ManualCsv;
 use SHUTDOWN\Scraper\CCMS;
 use SHUTDOWN\Scraper\FacebookPR;
@@ -546,6 +551,45 @@ test('FacebookPR scraper extracts notice', function (): void {
     $items = $scraper->fetch();
     assertCount(1, $items);
     assertTrue(stripos($items[0]['reason'], 'shutdown') !== false);
+});
+
+test('Application facade and router wiring', function (): void {
+    withTempDir(function (string $dir): void {
+        $app = new Application($dir);
+        $config = $app->config();
+        assertTrue(isset($config['sources']));
+        $app->updateConfig(['timezone' => 'UTC', 'sources' => []]);
+        $updated = $app->config();
+        assertSame('UTC', $updated['timezone']);
+        $analytics = $app->analytics();
+        assertTrue($analytics instanceof Analytics);
+
+        $router = (new Router())
+            ->get('ping', function (Request $request): Response {
+                return Response::json(['ok' => true, 'route' => $request->route()]);
+            });
+
+        $response = $router->dispatch(new Request('GET', ['route' => 'ping']));
+        $payload = $response->jsonPayload();
+        assertTrue(is_array($payload));
+        assertTrue($payload['ok']);
+        assertSame('ping', $payload['route']);
+
+        try {
+            $router->dispatch(new Request('POST', ['route' => 'ping']));
+            assertTrue(false, 'Expected HttpException for invalid method');
+        } catch (HttpException $e) {
+            assertSame(405, $e->getStatus());
+        }
+
+        $request = new Request('POST', ['route' => 'ping'], [], '{invalid');
+        try {
+            $request->jsonBody();
+            assertTrue(false, 'Expected HttpException for invalid JSON payload');
+        } catch (HttpException $e) {
+            assertSame(400, $e->getStatus());
+        }
+    });
 });
 
 test('LescoScraper merges sources and reports', function (): void {
